@@ -1,0 +1,28 @@
+# Core dependencies
+numpy>=1.24.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+tqdm>=4.65.0
+requests>=2.31.0
+pyyaml>=6.0
+
+# PyTorch (for MPS and CUDA support)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# MLX (for Apple Silicon - install only on macOS with Apple Silicon)
+# mlx>=0.20.0
+
+# ONNX Runtime
+onnxruntime>=1.16.0
+
+# FFmpeg wrapper
+ffmpeg-python>=0.2.0
+
+# UI
+gradio>=4.0.0
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
+ruff>=0.1.0
