@@ -47,10 +47,11 @@ class InterpolationLoss(nn.Module):
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
+            valid = _optional_batch_tensor(batch, "flow_valid", prediction)
             flow = balanced_flow_loss(
-                auxiliary["flow_t0"], target_flow0, self.config.static_flow_weight
+                auxiliary["flow_t0"], target_flow0, self.config.static_flow_weight, valid
             ) + balanced_flow_loss(
-                auxiliary["flow_t1"], target_flow1, self.config.static_flow_weight
+                auxiliary["flow_t1"], target_flow1, self.config.static_flow_weight, valid
             )
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
@@ -63,8 +64,19 @@ def _gradient(frame: Tensor) -> tuple[Tensor, Tensor]:
     return frame[:, :, :, 1:] - frame[:, :, :, :-1], frame[:, :, 1:, :] - frame[:, :, :-1, :]
 
 
-def balanced_flow_loss(prediction: Tensor, target: Tensor, static_weight: float = 0.1) -> Tensor:
+def balanced_flow_loss(
+    prediction: Tensor,
+    target: Tensor,
+    static_weight: float = 0.1,
+    valid_samples: Tensor | None = None,
+) -> Tensor:
     """Normalize moving and static regions separately to avoid zero-flow collapse."""
+    if valid_samples is not None:
+        valid_samples = valid_samples.bool().flatten()
+        prediction = prediction[valid_samples]
+        target = target[valid_samples]
+        if prediction.shape[0] == 0:
+            return prediction.new_zeros(())
     endpoint_error = torch.sqrt((prediction - target).square().sum(dim=1, keepdim=True) + 1e-6)
     moving = target.square().sum(dim=1, keepdim=True) > 1e-8
     stationary = ~moving
@@ -78,3 +90,11 @@ def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tens
     if not isinstance(value, Tensor):
         raise TypeError(f"batch field {key!r} must be a tensor")
     return value.to(device=reference.device, dtype=reference.dtype, non_blocking=True)
+
+
+def _optional_batch_tensor(
+    batch: dict[str, object], key: str, reference: Tensor
+) -> Tensor | None:
+    if key not in batch:
+        return None
+    return _batch_tensor(batch, key, reference)

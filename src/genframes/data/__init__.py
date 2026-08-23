@@ -10,10 +10,14 @@ from .manifest import (
     Split,
     assign_split,
 )
+from .mixed import MixedFrameDataset
+from .real import ManifestFrameDataset
 
 __all__ = [
     "DatasetManifest",
     "DatasetRole",
+    "ManifestFrameDataset",
+    "MixedFrameDataset",
     "RiskLevel",
     "SampleRecord",
     "SourceRecord",
