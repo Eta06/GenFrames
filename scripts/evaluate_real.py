@@ -39,7 +39,13 @@ def main() -> None:
     selected = _stable_subset(dataset, arguments.max_samples, arguments.seed)
     loader = DataLoader(selected, batch_size=1, shuffle=False, num_workers=0)
     device = torch.device(arguments.device)
-    model = GenFramesBilateralFlow(BilateralFlowConfig(base_channels=24, max_flow=20.0))
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=24,
+            max_flow=20.0,
+            coarse_velocity=arguments.coarse_velocity,
+        )
+    )
     model.load_state_dict(load_file(checkpoint))
     result = {
         "dataset": {
@@ -116,6 +122,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--profile-samples", type=int, default=30)
     parser.add_argument("--seed", type=int, default=2405)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--coarse-velocity", action="store_true")
     return parser.parse_args()
 
 
