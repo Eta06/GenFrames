@@ -18,6 +18,12 @@ from genframes.storage import StorageLayout
 
 BASELINE_ID = "prism-bilateral-flow-davis-mixed-001"
 CHALLENGER_ID = "prism-bilateral-flow-coarse-davis-mixed-001"
+ORACLE_WARP_ID = "prism-coarse-oracle-warp-davis-mixed-001"
+MODEL_SPECS = {
+    BASELINE_ID: False,
+    CHALLENGER_ID: True,
+    ORACLE_WARP_ID: True,
+}
 
 
 def main() -> None:
@@ -27,7 +33,7 @@ def main() -> None:
     responses = json.loads((package / "responses.json").read_text(encoding="utf-8"))
     if any(response["preference"] != "both-bad" for response in responses["responses"]):
         raise ValueError("this diagnostic is scoped to the sealed unanimous both-bad response")
-    destination = package / "diagnostics"
+    destination = package / arguments.output_name
     destination.mkdir(parents=True, exist_ok=True)
     dataset = ManifestFrameDataset(
         DatasetManifest.load(layout.datasets / "davis-2017" / "genframes-manifest.json"),
@@ -37,8 +43,8 @@ def main() -> None:
     selected = _select_cases(dataset, subset_seed=2405, count=6)
     device = torch.device(arguments.device)
     models = {
-        BASELINE_ID: _load_model(layout, BASELINE_ID, coarse=False, device=device),
-        CHALLENGER_ID: _load_model(layout, CHALLENGER_ID, coarse=True, device=device),
+        model_id: _load_model(layout, model_id, coarse=coarse, device=device)
+        for model_id, coarse in MODEL_SPECS.items()
     }
     cases: list[dict[str, object]] = []
     with torch.inference_mode():
@@ -62,7 +68,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[CHALLENGER_ID],
+                outputs[ORACLE_WARP_ID],
             )
             cases.append(
                 {
@@ -73,7 +79,7 @@ def main() -> None:
                 }
             )
     analysis = {
-        "experiment_id": arguments.ab_experiment,
+        "experiment_id": f"{arguments.ab_experiment}/{arguments.output_name}",
         "definitions": {
             "unwarped_oracle": "per-pixel endpoint with lower RGB squared error to GT",
             "warp_oracle": "per-pixel predicted warp with lower RGB squared error to GT",
@@ -160,7 +166,7 @@ def _gradient_energy(frame: torch.Tensor) -> float:
 
 def _aggregate(cases: list[dict[str, object]]) -> dict[str, dict[str, float]]:
     result: dict[str, dict[str, float]] = {}
-    for model_id in (BASELINE_ID, CHALLENGER_ID):
+    for model_id in MODEL_SPECS:
         model_metrics = [case["models"][model_id] for case in cases]
         keys = model_metrics[0].keys()
         result[model_id] = {
@@ -276,6 +282,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--storage-root")
     parser.add_argument("--ab-experiment", default="prism-human-ab-002")
+    parser.add_argument("--output-name", default="diagnostics-oracle-warp-001")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
