@@ -74,10 +74,10 @@ def main() -> None:
         layout.checkpoints / arguments.initial_checkpoint_id / "model.safetensors"
     )
     incompatible = model.load_state_dict(load_file(initial_checkpoint), strict=False)
-    expected_missing = (
-        {"coarse_head.weight", "coarse_head.bias"} if arguments.coarse_velocity else set()
-    )
-    if set(incompatible.missing_keys) != expected_missing or incompatible.unexpected_keys:
+    allowed_missing = [set()]
+    if arguments.coarse_velocity:
+        allowed_missing.append({"coarse_head.weight", "coarse_head.bias"})
+    if set(incompatible.missing_keys) not in allowed_missing or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
     train_config = TrainConfig(
         steps=arguments.steps,
