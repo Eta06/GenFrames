@@ -42,7 +42,16 @@ def main() -> None:
         key=lambda index: _stress_score(dataset[index]),
         reverse=True,
     )
-    selected = ranked[: arguments.cases]
+    selected: list[int] = []
+    selected_sequences: set[str] = set()
+    for index in ranked:
+        sequence_id = str(dataset[index]["sequence_id"])
+        if sequence_id in selected_sequences:
+            continue
+        selected.append(index)
+        selected_sequences.add(sequence_id)
+        if len(selected) == arguments.cases:
+            break
     device = torch.device(arguments.device)
     baseline = _load_model(layout, BASELINE_ID, coarse=False, device=device)
     challenger = _load_model(layout, CHALLENGER_ID, coarse=True, device=device)
@@ -89,7 +98,7 @@ def main() -> None:
         "experiment_id": arguments.experiment_id,
         "instructions": "Choose A, B, tie, or both-bad without opening blinding-key.json.",
         "panel_order": ["input0", "candidate A", "ground truth", "candidate B", "input1"],
-        "selection": "top hard-motion score within fixed DAVIS-300 subset",
+        "selection": "top hard-motion score within fixed DAVIS-300; unique sequences",
         "subset_seed": arguments.subset_seed,
         "blinding_seed_sha256_not_disclosed": True,
         "cases": public_cases,
@@ -146,7 +155,7 @@ def _to_pil(value: torch.Tensor | str) -> Image.Image:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment-id", default="prism-human-ab-001")
+    parser.add_argument("--experiment-id", default="prism-human-ab-002")
     parser.add_argument("--storage-root")
     parser.add_argument("--cases", type=int, default=6)
     parser.add_argument("--subset-seed", type=int, default=2405)
