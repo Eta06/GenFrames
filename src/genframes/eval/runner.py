@@ -103,6 +103,9 @@ def _optional_tensor(
 
 
 def _moving_mask(batch: dict[str, Any], reference: Tensor) -> Tensor | None:
+    explicit = _optional_tensor(batch, "moving_mask", reference.device)
+    if explicit is not None:
+        return explicit.bool()
     flow0 = _optional_tensor(batch, "flow_t0", reference.device)
     flow1 = _optional_tensor(batch, "flow_t1", reference.device)
     if flow0 is None or flow1 is None:

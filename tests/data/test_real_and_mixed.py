@@ -29,6 +29,7 @@ def test_manifest_frames_and_mixture_share_training_contract(tmp_path: Path) -> 
     sample = real[0]
     assert sample["target"].shape == (3, 16, 20)
     assert sample["object_mask"].shape == (1, 16, 20)
+    assert sample["moving_mask"].shape == (1, 16, 20)
     assert not sample["flow_valid"]
 
     mixed = MixedFrameDataset({"real": real}, weights={"real": 1.0}, length=3, seed=8)

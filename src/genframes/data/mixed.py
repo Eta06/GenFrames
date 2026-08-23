@@ -49,6 +49,7 @@ class MixedFrameDataset(Dataset[dict[str, Tensor | str]]):
         sample.setdefault("flow_t1", torch.zeros((2, height, width), dtype=reference.dtype))
         sample.setdefault("flow_valid", torch.tensor(source == "synthetic"))
         sample.setdefault("object_mask", torch.zeros((1, height, width), dtype=torch.bool))
+        sample.setdefault("moving_mask", torch.zeros((1, height, width), dtype=torch.bool))
         sample["source_kind"] = source
         return sample
 

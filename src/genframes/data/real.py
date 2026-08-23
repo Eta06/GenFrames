@@ -51,6 +51,8 @@ class ManifestFrameDataset(Dataset[dict[str, Tensor | str]]):
         frames, target_mask = self._spatial_transform(frames, target_mask, index)
         height, width = frames[0].shape[-2:]
         zero_flow = torch.zeros((2, height, width), dtype=torch.float32)
+        motion_proxy = (frames[sample.input_indices[1]] - frames[sample.input_indices[0]])
+        motion_proxy = motion_proxy.abs().mean(dim=0, keepdim=True) > (8.0 / 255.0)
         return {
             "frame0": frames[sample.input_indices[0]],
             "frame1": frames[sample.input_indices[1]],
@@ -60,6 +62,7 @@ class ManifestFrameDataset(Dataset[dict[str, Tensor | str]]):
             "flow_t1": zero_flow.clone(),
             "flow_valid": torch.tensor(False),
             "object_mask": target_mask,
+            "moving_mask": motion_proxy,
             "sequence_id": sample.sequence_id,
             "source_kind": "real",
         }

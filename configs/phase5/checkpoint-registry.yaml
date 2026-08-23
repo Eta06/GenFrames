@@ -1,0 +1,13 @@
+checkpoints:
+  - id: orbit-bilateral-flow-analytic-003
+    status: immutable-baseline
+    architecture: GenFramesBilateralFlow
+    parameters: 549510
+    storage_relative_path: checkpoints/orbit-bilateral-flow-analytic-003/model.safetensors
+    sha256: 4289af9ee2478d9047aff7f0a0f07fbb4db7eabf14650d8c6cf995d6fd2dcdd7
+    training_source: analytic-motion-v1
+    validation:
+      analytic_rgb_mae: 0.01297837050697126
+      analytic_rgb_psnr_db: 27.19775801897049
+    provenance_risk: green
+    overwrite: forbidden
