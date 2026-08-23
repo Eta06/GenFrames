@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genframes"
+version = "0.0.1"
+description = "Research code for an original arbitrary-time video frame interpolation model"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "GenFrames Contributors"}]
+dependencies = [
+  "numpy>=2.0",
+  "pillow>=10.4",
+  "pyyaml>=6.0.2",
+  "safetensors>=0.4.5",
+]
+
+[project.optional-dependencies]
+torch = ["torch>=2.5", "torchvision>=0.20"]
+mlx = ["mlx>=0.32; platform_system == 'Darwin' and platform_machine == 'arm64'"]
+video = ["av>=13.0"]
+metrics = ["scikit-image>=0.24", "lpips>=0.1.4"]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=5.0",
+  "ruff>=0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
