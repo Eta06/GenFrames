@@ -20,6 +20,7 @@ class BilateralFlowConfig:
     max_flow: float = 20.0
     residual_limit: float = 0.1
     blend_logit_limit: float = 2.0
+    coarse_velocity: bool = False
 
 
 class GenFramesBilateralFlow(FrameInterpolator):
@@ -59,6 +60,11 @@ class GenFramesBilateralFlow(FrameInterpolator):
         self.head = nn.Conv2d(channels, 6, kernel_size=3, padding=1)
         nn.init.zeros_(self.head.weight)
         nn.init.zeros_(self.head.bias)
+        self.coarse_head: nn.Conv2d | None = None
+        if self.config.coarse_velocity:
+            self.coarse_head = nn.Conv2d(channels * 3, 2, kernel_size=3, padding=1)
+            nn.init.zeros_(self.coarse_head.weight)
+            nn.init.zeros_(self.coarse_head.bias)
 
     def forward(self, frame0: Tensor, frame1: Tensor, time: Tensor | float) -> InterpolationOutput:
         self.validate_frames(frame0, frame1)
@@ -81,7 +87,17 @@ class GenFramesBilateralFlow(FrameInterpolator):
         decoded0 = self.decode0(torch.cat((decoded0, skip0), dim=1))
         prediction = self.head(decoded0)
 
-        velocity = self.config.max_flow * prediction[:, :2].tanh()
+        velocity_logits = prediction[:, :2]
+        coarse_logits = None
+        if self.coarse_head is not None:
+            coarse_logits = functional.interpolate(
+                self.coarse_head(encoded),
+                size=velocity_logits.shape[-2:],
+                mode="bilinear",
+                align_corners=False,
+            )
+            velocity_logits = velocity_logits + coarse_logits
+        velocity = self.config.max_flow * velocity_logits.tanh()
         flow_t0 = -target_time * velocity
         flow_t1 = (1.0 - target_time) * velocity
         warped0 = backward_warp(frame0, flow_t0)
@@ -91,16 +107,15 @@ class GenFramesBilateralFlow(FrameInterpolator):
         weight1 = (target_logit + blend_delta).sigmoid()
         residual = self.config.residual_limit * prediction[:, 3:6].tanh()
         frame = (1.0 - weight1) * warped0 + weight1 * warped1 + residual
-        return InterpolationOutput(
-            frame=frame,
-            auxiliary={
-                "velocity": velocity,
-                "flow_t0": flow_t0,
-                "flow_t1": flow_t1,
-                "weight1": weight1,
-                "residual": residual,
-                "warped0": warped0,
-                "warped1": warped1,
-            },
-        )
-
+        auxiliary = {
+            "velocity": velocity,
+            "flow_t0": flow_t0,
+            "flow_t1": flow_t1,
+            "weight1": weight1,
+            "residual": residual,
+            "warped0": warped0,
+            "warped1": warped1,
+        }
+        if coarse_logits is not None:
+            auxiliary["coarse_velocity_logits"] = coarse_logits
+        return InterpolationOutput(frame=frame, auxiliary=auxiliary)

@@ -1,0 +1,25 @@
+experiment_id: prism-bilateral-flow-coarse-davis-mixed-001
+initial_checkpoint: prism-bilateral-flow-davis-mixed-001
+
+model:
+  name: GenFramesBilateralFlow
+  base_channels: 24
+  max_flow: 20.0
+  coarse_velocity: true
+
+data:
+  real_weight: 0.75
+  synthetic_weight: 0.25
+  crop_size: 256
+  mixture_samples: 4096
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  amp: true
+  seed: 5101
+
+loss:
+  bilateral_flow_weight: 0.01
+  static_flow_weight: 0.1

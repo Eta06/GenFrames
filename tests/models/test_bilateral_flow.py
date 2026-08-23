@@ -27,3 +27,15 @@ def test_bilateral_flow_has_finite_gradients() -> None:
     gradients = [parameter.grad for parameter in model.parameters() if parameter.grad is not None]
     assert gradients
     assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+
+def test_coarse_velocity_variant_starts_from_same_function() -> None:
+    frame0 = torch.rand((1, 3, 32, 40))
+    frame1 = torch.rand_like(frame0)
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(base_channels=8, coarse_velocity=True)
+    )
+    output = model(frame0, frame1, 0.25)
+    expected = LinearBlend()(frame0, frame1, 0.25).frame
+    assert torch.allclose(output.frame, expected, atol=1e-6)
+    assert output.auxiliary["coarse_velocity_logits"].shape == (1, 2, 32, 40)

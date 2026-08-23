@@ -64,12 +64,21 @@ def main() -> None:
         num_workers=0,
         pin_memory=True,
     )
-    model_config = BilateralFlowConfig(base_channels=24, max_flow=20.0)
+    model_config = BilateralFlowConfig(
+        base_channels=24,
+        max_flow=20.0,
+        coarse_velocity=arguments.coarse_velocity,
+    )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
-        layout.checkpoints / "orbit-bilateral-flow-analytic-003" / "model.safetensors"
+        layout.checkpoints / arguments.initial_checkpoint_id / "model.safetensors"
     )
-    model.load_state_dict(load_file(initial_checkpoint))
+    incompatible = model.load_state_dict(load_file(initial_checkpoint), strict=False)
+    expected_missing = (
+        {"coarse_head.weight", "coarse_head.bias"} if arguments.coarse_velocity else set()
+    )
+    if set(incompatible.missing_keys) != expected_missing or incompatible.unexpected_keys:
+        raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
     train_config = TrainConfig(
         steps=arguments.steps,
         learning_rate=arguments.learning_rate,
@@ -162,6 +171,9 @@ def _sha256(path: Path) -> str:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-id", default="prism-bilateral-flow-davis-mixed-001")
+    parser.add_argument(
+        "--initial-checkpoint-id", default="orbit-bilateral-flow-analytic-003"
+    )
     parser.add_argument("--storage-root")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--steps", type=int, default=1500)
@@ -173,6 +185,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=5101)
     parser.add_argument("--log-every", type=int, default=100)
+    parser.add_argument("--coarse-velocity", action="store_true")
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")
