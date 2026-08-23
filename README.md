@@ -1,119 +1,24 @@
-# GenFrames 🎬
+# GenFrames
 
-AI-powered video frame interpolation tool that makes your videos buttery smooth! Generate intermediate frames to increase frame rates using state-of-the-art RIFE model.
+GenFrames is a research project for developing an original video frame
+interpolation model. The target is arbitrary-time interpolation, including
+30 to 60 FPS and 60 to 120 FPS conversion, with first-class PyTorch/CUDA and
+Apple Silicon MLX portability.
 
-## Features ✨
+The previous RIFE wrapper implementation has been removed. GenFrames will
+contain its own architecture, training pipeline, evaluation harness, and
+checkpoints. Existing VFI systems are treated as research references,
+baselines, or potential supervision sources, not as the product identity.
 
-- **Multiple Interpolation Modes**: 2x, 4x, 8x frame rate increase
-  - 30fps → 60fps (2x)
-  - 30fps → 120fps (4x)
-  - 30fps → 240fps (8x)
-- **Optimized for Apple Silicon**: Native MLX and PyTorch MPS support
-- **Multi-Backend**: Automatic detection and selection of best available backend
-  - MLX (Apple Silicon - fastest on M1/M2/M3/M4/M5)
-  - PyTorch MPS (Apple Silicon)
-  - PyTorch CUDA (NVIDIA GPUs)
-  - PyTorch CPU (fallback)
-- **RIFE Model**: State-of-the-art Real-Time Intermediate Flow Estimation
-- **Easy to Use**: CLI tool + Web UI
-- **Automatic Model Download**: Models downloaded on first use
+## Current status
 
-## Installation
+Phase 0: repository reset and research refresh.
 
-### Basic Installation
-
-```bash
-pip install -e .
-```
-
-### With All Features
-
-```bash
-pip install -e ".[all]"
-```
-
-### Platform-Specific
-
-**Apple Silicon (MLX + PyTorch MPS)**:
-```bash
-pip install -e ".[mlx,torch,ui,ffmpeg]"
-```
-
-**NVIDIA GPU (CUDA)**:
-```bash
-pip install -e ".[torch,ui,ffmpeg]"
-```
-
-## Quick Start
-
-### CLI Usage
-
-```bash
-# 2x interpolation (30fps → 60fps)
-genframes input.mp4 output.mp4 --factor 2
-
-# 4x interpolation (30fps → 120fps)
-genframes input.mp4 output.mp4 --factor 4
-
-# 8x interpolation with specific backend
-genframes input.mp4 output.mp4 --factor 8 --backend mlx
-```
-
-### Web UI
-
-```bash
-genframes --ui
-```
-
-Then open your browser to `http://localhost:7860`
-
-### Python API
-
-```python
-from genframes import FrameInterpolator
-
-# Initialize interpolator (auto-selects best backend)
-interpolator = FrameInterpolator(model="rife", backend="auto")
-
-# Interpolate video
-interpolator.process_video(
-    input_path="input.mp4",
-    output_path="output.mp4",
-    factor=2  # 2x frame rate
-)
-```
-
-## How It Works
-
-GenFrames uses the RIFE (Real-Time Intermediate Flow Estimation) model to generate intermediate frames:
-
-```
-Original: Frame 1 -----------> Frame 2
-                    ↓
-With 2x:  Frame 1 → Gen 1.5 → Frame 2
-                    ↓
-With 4x:  Frame 1 → Gen 1.25 → Gen 1.5 → Gen 1.75 → Frame 2
-```
-
-## Supported Models
-
-- **RIFE 4.6** (default) - Fast and high quality
-- More models coming soon (FILM, etc.)
-
-## System Requirements
-
-- Python 3.9+
-- 8GB+ RAM recommended
-- For best performance:
-  - Apple Silicon: M1 or newer
-  - NVIDIA: GPU with 4GB+ VRAM
-  - AMD: GPU with 4GB+ VRAM
+Research records, dataset provenance, architectural decisions, and experiment
+results will be committed to this repository as the project progresses.
 
 ## License
 
-MIT License
-
-## Acknowledgments
-
-- [RIFE](https://github.com/hzwer/ECCV2022-RIFE) - Real-Time Intermediate Flow Estimation
-- [MLX](https://github.com/ml-explore/mlx) - Apple's ML framework
+The repository is currently distributed under the MIT License. Third-party
+datasets, checkpoints, and research artifacts retain their own terms. Their
+provenance and risk classification will be documented before use.
