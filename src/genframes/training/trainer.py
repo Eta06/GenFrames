@@ -70,8 +70,8 @@ def train_steps(
         time = _tensor(batch, "time", device)
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type=device.type, enabled=amp_enabled):
-            prediction = model(frame0, frame1, time).frame
-            components = criterion(prediction, target)
+            output = model(frame0, frame1, time)
+            components = criterion(output, target, batch)
         scaler.scale(components["total"]).backward()
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip_norm)
@@ -106,4 +106,3 @@ def _tensor(batch: dict[str, Any], key: str, device: torch.device) -> Tensor:
     if not isinstance(value, Tensor):
         raise TypeError(f"batch field {key!r} must be a tensor")
     return value.to(device, non_blocking=True)
-
