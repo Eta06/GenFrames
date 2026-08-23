@@ -15,4 +15,7 @@ def test_evaluation_runner_reports_learning_free_baseline() -> None:
     assert result.parameters == 0
     assert result.mae > 0
     assert result.psnr > 0
-
+    assert result.moving_mae is not None
+    assert result.moving_psnr is not None
+    assert result.occlusion_mae is not None
+    assert result.flow_epe is None
