@@ -11,3 +11,20 @@ checkpoints:
       analytic_rgb_psnr_db: 27.19775801897049
     provenance_risk: green
     overwrite: forbidden
+
+  - id: prism-bilateral-flow-davis-mixed-001
+    status: current-real-video-baseline
+    architecture: GenFramesBilateralFlow
+    parameters: 549510
+    storage_relative_path: checkpoints/prism-bilateral-flow-davis-mixed-001/model.safetensors
+    sha256: 974b1402c33938617ccbf4c13bbb4ad031425cadc524c699d8facef19676e7f2
+    initial_checkpoint: orbit-bilateral-flow-analytic-003
+    training_sources:
+      davis_2017_weight: 0.75
+      analytic_motion_v1_weight: 0.25
+    validation:
+      davis_300_rgb_mae: 0.06869620860243837
+      davis_300_rgb_psnr_db: 20.162426509857177
+      analytic_256_rgb_psnr_db: 33.908097602427006
+    provenance_risk: yellow
+    overwrite: forbidden

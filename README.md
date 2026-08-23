@@ -12,10 +12,11 @@ baselines, or potential supervision sources, not as the product identity.
 
 ## Current status
 
-Phase 4 (Orbit): controlled architecture ablation. The first explicit bilateral
-flow candidate now beats the analytic linear-blend lower bound by 1.13 dB PSNR
-on a disjoint validation set. This is a pipeline milestone, not a claim of
-real-video quality; real-data training and perceptual evaluation remain pending.
+Phase 5 (Prism): real-data and stronger-motion development. DAVIS 2017 ingestion,
+real/synthetic mixing, regional evaluation, and immutable checkpoint tracking are
+active. The first mixed checkpoint beats its frozen synthetic predecessor by
+0.78 dB on the fixed real-video subset, but its 0.04 dB lead over linear blend is
+not yet sufficient to complete the phase.
 
 Research records, dataset provenance, architectural decisions, and experiment
 results will be committed to this repository as the project progresses.
