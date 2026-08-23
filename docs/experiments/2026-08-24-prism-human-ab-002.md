@@ -36,3 +36,6 @@ visual quality on selected hard-motion examples. Neither checkpoint is promoted
 as perceptually adequate. Multi-flow is not automatically authorized by this
 result; the six cases require component-level flow, warp, fusion, residual, and
 detail diagnostics first.
+
+The completed diagnosis is recorded in
+`2026-08-24-prism-hard-motion-failure-analysis.md`.
