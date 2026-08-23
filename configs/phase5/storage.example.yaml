@@ -1,0 +1,11 @@
+storage:
+  # Resolve this value outside version control and pass it through the CLI, or
+  # set GENFRAMES_STORAGE_ROOT. Never put machine-specific paths in shared config.
+  root_from_environment: GENFRAMES_STORAGE_ROOT
+  directories:
+    archives: archives
+    datasets: datasets
+    cache: cache
+    checkpoints: checkpoints
+    benchmarks: benchmarks
+    extracted_frames: extracted-frames

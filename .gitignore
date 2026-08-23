@@ -46,6 +46,8 @@ artifacts/
 data/cache/
 data/raw/
 .cache/
+configs/local/
+.env
 
 # Videos
 *.mp4
