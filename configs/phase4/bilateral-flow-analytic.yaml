@@ -25,5 +25,5 @@ loss:
   charbonnier_weight: 1.0
   edge_weight: 0.1
   bilateral_flow_weight: 0.01
+  static_flow_weight: 0.1
   epsilon: 0.001
-
