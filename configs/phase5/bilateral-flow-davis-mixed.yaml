@@ -1,0 +1,31 @@
+experiment_id: prism-bilateral-flow-davis-mixed-001
+initial_checkpoint: orbit-bilateral-flow-analytic-003
+
+model:
+  name: GenFramesBilateralFlow
+  base_channels: 24
+  max_flow: 20.0
+
+data:
+  real:
+    manifest: datasets/davis-2017/genframes-manifest.json
+    dataset_root: datasets/davis-2017/DAVIS
+    crop_size: 256
+    weight: 0.75
+  synthetic:
+    provider: analytic-motion-v1
+    weight: 0.25
+  mixture_samples: 4096
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  amp: true
+  seed: 5101
+
+loss:
+  charbonnier_weight: 1.0
+  edge_weight: 0.1
+  bilateral_flow_weight: 0.01
+  static_flow_weight: 0.1

@@ -51,7 +51,20 @@ class MixedFrameDataset(Dataset[dict[str, Tensor | str]]):
         sample.setdefault("object_mask", torch.zeros((1, height, width), dtype=torch.bool))
         sample.setdefault("moving_mask", torch.zeros((1, height, width), dtype=torch.bool))
         sample["source_kind"] = source
-        return sample
+        common_fields = (
+            "frame0",
+            "frame1",
+            "target",
+            "time",
+            "flow_t0",
+            "flow_t1",
+            "flow_valid",
+            "object_mask",
+            "moving_mask",
+            "sequence_id",
+            "source_kind",
+        )
+        return {key: sample[key] for key in common_fields}
 
 
 def _tensor(sample: dict[str, Tensor | str], key: str) -> Tensor:

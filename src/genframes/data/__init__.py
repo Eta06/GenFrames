@@ -1,5 +1,6 @@
 """Dataset manifests and sample providers."""
 
+from .analytic import AnalyticMotionDataset
 from .davis import DAVIS_2017_URL, build_davis_2017_manifest
 from .manifest import (
     DatasetManifest,
@@ -14,6 +15,7 @@ from .mixed import MixedFrameDataset
 from .real import ManifestFrameDataset
 
 __all__ = [
+    "AnalyticMotionDataset",
     "DatasetManifest",
     "DatasetRole",
     "ManifestFrameDataset",
