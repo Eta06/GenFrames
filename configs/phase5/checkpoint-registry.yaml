@@ -13,7 +13,7 @@ checkpoints:
     overwrite: forbidden
 
   - id: prism-bilateral-flow-davis-mixed-001
-    status: current-real-video-baseline
+    status: frozen-real-video-baseline
     architecture: GenFramesBilateralFlow
     parameters: 549510
     storage_relative_path: checkpoints/prism-bilateral-flow-davis-mixed-001/model.safetensors
@@ -26,5 +26,22 @@ checkpoints:
       davis_300_rgb_mae: 0.06869620860243837
       davis_300_rgb_psnr_db: 20.162426509857177
       analytic_256_rgb_psnr_db: 33.908097602427006
+    provenance_risk: yellow
+    overwrite: forbidden
+
+  - id: prism-bilateral-flow-coarse-davis-mixed-001
+    status: current-best
+    architecture: GenFramesBilateralFlow+CoarseVelocity
+    parameters: 550808
+    storage_relative_path: checkpoints/prism-bilateral-flow-coarse-davis-mixed-001/model.safetensors
+    sha256: 716e9c0c50acfdd06d0c5799f84fd57bd89acba058071608b02b527005f83aee
+    initial_checkpoint: prism-bilateral-flow-davis-mixed-001
+    training_sources:
+      davis_2017_weight: 0.75
+      analytic_motion_v1_weight: 0.25
+    validation:
+      davis_300_rgb_mae: 0.06718907408726713
+      davis_300_rgb_psnr_db: 20.407462844848634
+      analytic_256_rgb_psnr_db: 34.49791533499956
     provenance_risk: yellow
     overwrite: forbidden
