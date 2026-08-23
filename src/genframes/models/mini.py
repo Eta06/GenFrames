@@ -9,47 +9,13 @@ import torch.nn.functional as functional
 from torch import Tensor, nn
 
 from .base import FrameInterpolator, InterpolationOutput, prepare_time
+from .blocks import ConvAct, ResidualBlock
 
 
 @dataclass(frozen=True)
 class MiniConfig:
     base_channels: int = 24
     residual_limit: float = 0.25
-
-
-class _ConvAct(nn.Sequential):
-    def __init__(
-        self,
-        input_channels: int,
-        output_channels: int,
-        *,
-        stride: int = 1,
-        dilation: int = 1,
-    ) -> None:
-        super().__init__(
-            nn.Conv2d(
-                input_channels,
-                output_channels,
-                kernel_size=3,
-                stride=stride,
-                padding=dilation,
-                dilation=dilation,
-            ),
-            nn.SiLU(inplace=True),
-        )
-
-
-class _ResidualBlock(nn.Module):
-    def __init__(self, channels: int, *, dilation: int = 1) -> None:
-        super().__init__()
-        self.body = nn.Sequential(
-            _ConvAct(channels, channels, dilation=dilation),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=dilation, dilation=dilation),
-        )
-        self.activation = nn.SiLU(inplace=True)
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        return self.activation(inputs + self.body(inputs))
 
 
 class GenFramesMini(FrameInterpolator):
@@ -64,26 +30,26 @@ class GenFramesMini(FrameInterpolator):
         super().__init__()
         self.config = config or MiniConfig()
         channels = self.config.base_channels
-        self.stem = _ConvAct(13, channels)
-        self.encoder0 = nn.Sequential(_ResidualBlock(channels), _ResidualBlock(channels))
-        self.down1 = _ConvAct(channels, channels * 2, stride=2)
+        self.stem = ConvAct(13, channels)
+        self.encoder0 = nn.Sequential(ResidualBlock(channels), ResidualBlock(channels))
+        self.down1 = ConvAct(channels, channels * 2, stride=2)
         self.encoder1 = nn.Sequential(
-            _ResidualBlock(channels * 2, dilation=2),
-            _ResidualBlock(channels * 2),
+            ResidualBlock(channels * 2, dilation=2),
+            ResidualBlock(channels * 2),
         )
-        self.down2 = _ConvAct(channels * 2, channels * 3, stride=2)
+        self.down2 = ConvAct(channels * 2, channels * 3, stride=2)
         self.bottleneck = nn.Sequential(
-            _ResidualBlock(channels * 3, dilation=2),
-            _ResidualBlock(channels * 3, dilation=4),
-            _ResidualBlock(channels * 3),
+            ResidualBlock(channels * 3, dilation=2),
+            ResidualBlock(channels * 3, dilation=4),
+            ResidualBlock(channels * 3),
         )
         self.decode1 = nn.Sequential(
-            _ConvAct(channels * 5, channels * 2),
-            _ResidualBlock(channels * 2),
+            ConvAct(channels * 5, channels * 2),
+            ResidualBlock(channels * 2),
         )
         self.decode0 = nn.Sequential(
-            _ConvAct(channels * 3, channels),
-            _ResidualBlock(channels),
+            ConvAct(channels * 3, channels),
+            ResidualBlock(channels),
         )
         self.head = nn.Conv2d(channels, 4, kernel_size=3, padding=1)
         nn.init.zeros_(self.head.weight)
@@ -119,4 +85,3 @@ class GenFramesMini(FrameInterpolator):
                 "confidence": confidence,
             },
         )
-
