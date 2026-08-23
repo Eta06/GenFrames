@@ -20,7 +20,7 @@ from genframes.models import (
     LinearBlend,
     MiniConfig,
 )
-from genframes.training import TrainConfig, train_steps
+from genframes.training import InterpolationLoss, LossConfig, TrainConfig, train_steps
 
 
 def main() -> None:
@@ -42,6 +42,7 @@ def main() -> None:
         seed=arguments.seed,
         log_every=arguments.log_every,
     )
+    loss_config = LossConfig(bilateral_flow_weight=arguments.flow_weight)
     training = AnalyticMotionDataset(
         length=arguments.train_samples,
         height=arguments.size,
@@ -72,6 +73,7 @@ def main() -> None:
         training_loader,
         device=device,
         config=train_config,
+        criterion=InterpolationLoss(loss_config),
         callback=report,
     )
     evaluation = evaluate_model(model, validation_loader, device=device)
@@ -85,6 +87,7 @@ def main() -> None:
     result = {
         "model": asdict(model_config),
         "training": asdict(train_config),
+        "loss": asdict(loss_config),
         "dataset": {
             "train_samples": arguments.train_samples,
             "validation_samples": arguments.validation_samples,
@@ -112,6 +115,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--size", type=int, default=64)
     parser.add_argument("--channels", type=int, default=24)
     parser.add_argument("--max-flow", type=float, default=20.0)
+    parser.add_argument("--flow-weight", type=float, default=0.01)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--log-every", type=int, default=50)
