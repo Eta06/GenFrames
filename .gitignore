@@ -42,6 +42,9 @@ htmlcov/
 models/*.pth
 models/*.pkl
 models/*.onnx
+artifacts/
+data/cache/
+data/raw/
 .cache/
 
 # Videos
