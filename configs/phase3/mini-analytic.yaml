@@ -1,0 +1,26 @@
+model:
+  name: genframes-mini
+  base_channels: 24
+  residual_limit: 0.25
+
+data:
+  provider: analytic-motion-v1
+  train_samples: 2048
+  validation_samples: 256
+  size: 64
+  train_seed: 123
+  validation_seed: 1000123
+
+training:
+  steps: 1000
+  batch_size: 16
+  learning_rate: 0.0002
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  amp: true
+
+loss:
+  charbonnier_weight: 1.0
+  edge_weight: 0.1
+  epsilon: 0.001
+
