@@ -86,7 +86,10 @@ def main() -> None:
         seed=arguments.seed,
         log_every=arguments.log_every,
     )
-    loss_config = LossConfig(bilateral_flow_weight=arguments.flow_weight)
+    loss_config = LossConfig(
+        bilateral_flow_weight=arguments.flow_weight,
+        warp_oracle_weight=arguments.warp_oracle_weight,
+    )
     device = torch.device(arguments.device)
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
@@ -182,6 +185,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--crop-size", type=int, default=256)
     parser.add_argument("--real-weight", type=float, default=0.75)
     parser.add_argument("--flow-weight", type=float, default=0.01)
+    parser.add_argument("--warp-oracle-weight", type=float, default=0.0)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=5101)
     parser.add_argument("--log-every", type=int, default=100)

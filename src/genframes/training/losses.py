@@ -16,6 +16,7 @@ class LossConfig:
     edge_weight: float = 0.1
     bilateral_flow_weight: float = 0.01
     static_flow_weight: float = 0.1
+    warp_oracle_weight: float = 0.0
     epsilon: float = 1e-3
 
 
@@ -44,6 +45,7 @@ class InterpolationLoss(nn.Module):
             prediction_dy - target_dy
         ).abs().mean()
         flow = prediction.new_zeros(())
+        warp_oracle = prediction.new_zeros(())
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
@@ -53,11 +55,22 @@ class InterpolationLoss(nn.Module):
             ) + balanced_flow_loss(
                 auxiliary["flow_t1"], target_flow1, self.config.static_flow_weight, valid
             )
+        if "warped0" in auxiliary and "warped1" in auxiliary:
+            warp_oracle = oracle_warp_loss(
+                auxiliary["warped0"], auxiliary["warped1"], target, self.config.epsilon
+            )
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
             + self.config.bilateral_flow_weight * flow
+            + self.config.warp_oracle_weight * warp_oracle
         )
-        return {"total": total, "charbonnier": charbonnier, "edge": edge, "flow": flow}
+        return {
+            "total": total,
+            "charbonnier": charbonnier,
+            "edge": edge,
+            "flow": flow,
+            "warp_oracle": warp_oracle,
+        }
 
 
 def _gradient(frame: Tensor) -> tuple[Tensor, Tensor]:
@@ -83,6 +96,15 @@ def balanced_flow_loss(
     moving_loss = (endpoint_error * moving).sum() / moving.sum().clamp_min(1)
     stationary_loss = (endpoint_error * stationary).sum() / stationary.sum().clamp_min(1)
     return moving_loss + static_weight * stationary_loss
+
+
+def oracle_warp_loss(
+    warped0: Tensor, warped1: Tensor, target: Tensor, epsilon: float = 1e-3
+) -> Tensor:
+    """Require at least one endpoint warp to explain each target pixel."""
+    error0 = torch.sqrt((warped0 - target).square() + epsilon**2).mean(dim=1)
+    error1 = torch.sqrt((warped1 - target).square() + epsilon**2).mean(dim=1)
+    return torch.minimum(error0, error1).mean()
 
 
 def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tensor:
