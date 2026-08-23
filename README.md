@@ -12,7 +12,10 @@ baselines, or potential supervision sources, not as the product identity.
 
 ## Current status
 
-Phase 0: repository reset and research refresh.
+Phase 4 (Orbit): controlled architecture ablation. The first explicit bilateral
+flow candidate now beats the analytic linear-blend lower bound by 1.13 dB PSNR
+on a disjoint validation set. This is a pipeline milestone, not a claim of
+real-video quality; real-data training and perceptual evaluation remain pending.
 
 Research records, dataset provenance, architectural decisions, and experiment
 results will be committed to this repository as the project progresses.
