@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as functional
 from torch import Tensor, nn
 
-from genframes.ops import backward_warp
+from genframes.ops import backward_warp, local_correlation
 
 from .base import FrameInterpolator, InterpolationOutput, prepare_time
 from .blocks import ConvAct, ResidualBlock
@@ -21,6 +21,9 @@ class BilateralFlowConfig:
     residual_limit: float = 0.1
     blend_logit_limit: float = 2.0
     coarse_velocity: bool = False
+    correlation_radius: int = 0
+    correspondence_channels: int = 16
+    correspondence_limit: float = 16.0
 
 
 class GenFramesBilateralFlow(FrameInterpolator):
@@ -65,6 +68,26 @@ class GenFramesBilateralFlow(FrameInterpolator):
             self.coarse_head = nn.Conv2d(channels * 3, 2, kernel_size=3, padding=1)
             nn.init.zeros_(self.coarse_head.weight)
             nn.init.zeros_(self.coarse_head.bias)
+        self.match_encoder: nn.Sequential | None = None
+        self.correspondence_body: nn.Sequential | None = None
+        self.correspondence_head: nn.Conv2d | None = None
+        if self.config.correlation_radius > 0:
+            match_channels = self.config.correspondence_channels
+            self.match_encoder = nn.Sequential(
+                ConvAct(3, match_channels, stride=2),
+                ConvAct(match_channels, match_channels * 2, stride=2),
+                ResidualBlock(match_channels * 2),
+                ConvAct(match_channels * 2, match_channels * 2, stride=2),
+                ResidualBlock(match_channels * 2),
+            )
+            correlation_channels = 2 * (2 * self.config.correlation_radius + 1) ** 2
+            self.correspondence_body = nn.Sequential(
+                ConvAct(correlation_channels, match_channels * 2),
+                ResidualBlock(match_channels * 2),
+            )
+            self.correspondence_head = nn.Conv2d(match_channels * 2, 2, kernel_size=3, padding=1)
+            nn.init.zeros_(self.correspondence_head.weight)
+            nn.init.zeros_(self.correspondence_head.bias)
 
     def forward(self, frame0: Tensor, frame1: Tensor, time: Tensor | float) -> InterpolationOutput:
         self.validate_frames(frame0, frame1)
@@ -98,6 +121,33 @@ class GenFramesBilateralFlow(FrameInterpolator):
             )
             velocity_logits = velocity_logits + coarse_logits
         velocity = self.config.max_flow * velocity_logits.tanh()
+        correspondence_velocity = None
+        if self.match_encoder is not None:
+            assert self.correspondence_body is not None
+            assert self.correspondence_head is not None
+            match0 = self.match_encoder(frame0)
+            match1 = self.match_encoder(frame1)
+            radius = self.config.correlation_radius
+            correlations = torch.cat(
+                (
+                    local_correlation(match0, match1, radius),
+                    local_correlation(match1, match0, radius),
+                ),
+                dim=1,
+            )
+            correspondence_logits = self.correspondence_head(
+                self.correspondence_body(correlations)
+            )
+            correspondence_logits = functional.interpolate(
+                correspondence_logits,
+                size=velocity.shape[-2:],
+                mode="bilinear",
+                align_corners=False,
+            )
+            correspondence_velocity = (
+                self.config.correspondence_limit * correspondence_logits.tanh()
+            )
+            velocity = velocity + correspondence_velocity
         flow_t0 = -target_time * velocity
         flow_t1 = (1.0 - target_time) * velocity
         warped0 = backward_warp(frame0, flow_t0)
@@ -118,4 +168,6 @@ class GenFramesBilateralFlow(FrameInterpolator):
         }
         if coarse_logits is not None:
             auxiliary["coarse_velocity_logits"] = coarse_logits
+        if correspondence_velocity is not None:
+            auxiliary["correspondence_velocity"] = correspondence_velocity
         return InterpolationOutput(frame=frame, auxiliary=auxiliary)

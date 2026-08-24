@@ -44,6 +44,8 @@ def main() -> None:
             base_channels=24,
             max_flow=20.0,
             coarse_velocity=arguments.coarse_velocity,
+            correlation_radius=arguments.correlation_radius,
+            correspondence_limit=arguments.correspondence_limit,
         )
     )
     model.load_state_dict(load_file(checkpoint))
@@ -123,6 +125,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=2405)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--coarse-velocity", action="store_true")
+    parser.add_argument("--correlation-radius", type=int, default=0)
+    parser.add_argument("--correspondence-limit", type=float, default=16.0)
     return parser.parse_args()
 
 

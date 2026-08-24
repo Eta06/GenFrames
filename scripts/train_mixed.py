@@ -68,16 +68,24 @@ def main() -> None:
         base_channels=24,
         max_flow=20.0,
         coarse_velocity=arguments.coarse_velocity,
+        correlation_radius=arguments.correlation_radius,
+        correspondence_limit=arguments.correspondence_limit,
     )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
         layout.checkpoints / arguments.initial_checkpoint_id / "model.safetensors"
     )
     incompatible = model.load_state_dict(load_file(initial_checkpoint), strict=False)
-    allowed_missing = [set()]
+    allowed_keys: set[str] = set()
     if arguments.coarse_velocity:
-        allowed_missing.append({"coarse_head.weight", "coarse_head.bias"})
-    if set(incompatible.missing_keys) not in allowed_missing or incompatible.unexpected_keys:
+        allowed_keys.update({"coarse_head.weight", "coarse_head.bias"})
+    if arguments.correlation_radius > 0:
+        allowed_keys.update(
+            key
+            for key in model.state_dict()
+            if key.startswith(("match_encoder.", "correspondence_body.", "correspondence_head."))
+        )
+    if not set(incompatible.missing_keys).issubset(allowed_keys) or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
     train_config = TrainConfig(
         steps=arguments.steps,
@@ -190,6 +198,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=5101)
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--coarse-velocity", action="store_true")
+    parser.add_argument("--correlation-radius", type=int, default=0)
+    parser.add_argument("--correspondence-limit", type=float, default=16.0)
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")
