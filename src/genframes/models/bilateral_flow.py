@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as functional
 from torch import Tensor, nn
 
-from genframes.ops import backward_warp, local_correlation
+from genframes.ops import backward_warp, correlation_soft_argmax, local_correlation
 
 from .base import FrameInterpolator, InterpolationOutput, prepare_time
 from .blocks import ConvAct, ResidualBlock
@@ -24,6 +24,8 @@ class BilateralFlowConfig:
     correlation_radius: int = 0
     correspondence_channels: int = 16
     correspondence_limit: float = 16.0
+    correlation_moments: bool = False
+    correlation_temperature: float = 0.1
 
 
 class GenFramesBilateralFlow(FrameInterpolator):
@@ -71,6 +73,7 @@ class GenFramesBilateralFlow(FrameInterpolator):
         self.match_encoder: nn.Sequential | None = None
         self.correspondence_body: nn.Sequential | None = None
         self.correspondence_head: nn.Conv2d | None = None
+        self.correspondence_moment_scale: nn.Parameter | None = None
         if self.config.correlation_radius > 0:
             match_channels = self.config.correspondence_channels
             self.match_encoder = nn.Sequential(
@@ -81,6 +84,9 @@ class GenFramesBilateralFlow(FrameInterpolator):
                 ResidualBlock(match_channels * 2),
             )
             correlation_channels = 2 * (2 * self.config.correlation_radius + 1) ** 2
+            if self.config.correlation_moments:
+                correlation_channels += 4
+                self.correspondence_moment_scale = nn.Parameter(torch.zeros(()))
             self.correspondence_body = nn.Sequential(
                 ConvAct(correlation_channels, match_channels * 2),
                 ResidualBlock(match_channels * 2),
@@ -128,13 +134,28 @@ class GenFramesBilateralFlow(FrameInterpolator):
             match0 = self.match_encoder(frame0)
             match1 = self.match_encoder(frame1)
             radius = self.config.correlation_radius
-            correlations = torch.cat(
-                (
-                    local_correlation(match0, match1, radius),
-                    local_correlation(match1, match0, radius),
-                ),
-                dim=1,
-            )
+            correlation01 = local_correlation(match0, match1, radius)
+            correlation10 = local_correlation(match1, match0, radius)
+            evidence = [correlation01, correlation10]
+            moment_velocity = None
+            if self.config.correlation_moments:
+                moment01 = correlation_soft_argmax(
+                    correlation01, radius, self.config.correlation_temperature
+                )
+                moment10 = correlation_soft_argmax(
+                    correlation10, radius, self.config.correlation_temperature
+                )
+                evidence.extend((moment01, moment10))
+                moment_velocity = 0.5 * (moment01 - moment10)
+                moment_velocity = functional.interpolate(
+                    moment_velocity,
+                    size=velocity.shape[-2:],
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                moment_velocity[:, 0] *= frame0.shape[-1] / match0.shape[-1]
+                moment_velocity[:, 1] *= frame0.shape[-2] / match0.shape[-2]
+            correlations = torch.cat(evidence, dim=1)
             correspondence_logits = self.correspondence_head(
                 self.correspondence_body(correlations)
             )
@@ -147,6 +168,11 @@ class GenFramesBilateralFlow(FrameInterpolator):
             correspondence_velocity = (
                 self.config.correspondence_limit * correspondence_logits.tanh()
             )
+            if moment_velocity is not None:
+                assert self.correspondence_moment_scale is not None
+                correspondence_velocity = correspondence_velocity + (
+                    self.correspondence_moment_scale.tanh() * moment_velocity
+                )
             velocity = velocity + correspondence_velocity
         flow_t0 = -target_time * velocity
         flow_t1 = (1.0 - target_time) * velocity
@@ -170,4 +196,6 @@ class GenFramesBilateralFlow(FrameInterpolator):
             auxiliary["coarse_velocity_logits"] = coarse_logits
         if correspondence_velocity is not None:
             auxiliary["correspondence_velocity"] = correspondence_velocity
+        if self.config.correlation_moments:
+            auxiliary["correspondence_moment_scale"] = self.correspondence_moment_scale
         return InterpolationOutput(frame=frame, auxiliary=auxiliary)

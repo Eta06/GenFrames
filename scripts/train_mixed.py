@@ -70,6 +70,8 @@ def main() -> None:
         coarse_velocity=arguments.coarse_velocity,
         correlation_radius=arguments.correlation_radius,
         correspondence_limit=arguments.correspondence_limit,
+        correlation_moments=arguments.correlation_moments,
+        correlation_temperature=arguments.correlation_temperature,
     )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
@@ -83,7 +85,14 @@ def main() -> None:
         allowed_keys.update(
             key
             for key in model.state_dict()
-            if key.startswith(("match_encoder.", "correspondence_body.", "correspondence_head."))
+            if key.startswith(
+                (
+                    "match_encoder.",
+                    "correspondence_body.",
+                    "correspondence_head.",
+                    "correspondence_moment_scale",
+                )
+            )
         )
     if not set(incompatible.missing_keys).issubset(allowed_keys) or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
@@ -200,6 +209,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--coarse-velocity", action="store_true")
     parser.add_argument("--correlation-radius", type=int, default=0)
     parser.add_argument("--correspondence-limit", type=float, default=16.0)
+    parser.add_argument("--correlation-moments", action="store_true")
+    parser.add_argument("--correlation-temperature", type=float, default=0.1)
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")

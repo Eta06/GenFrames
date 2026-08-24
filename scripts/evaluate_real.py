@@ -46,6 +46,8 @@ def main() -> None:
             coarse_velocity=arguments.coarse_velocity,
             correlation_radius=arguments.correlation_radius,
             correspondence_limit=arguments.correspondence_limit,
+            correlation_moments=arguments.correlation_moments,
+            correlation_temperature=arguments.correlation_temperature,
         )
     )
     model.load_state_dict(load_file(checkpoint))
@@ -127,6 +129,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--coarse-velocity", action="store_true")
     parser.add_argument("--correlation-radius", type=int, default=0)
     parser.add_argument("--correspondence-limit", type=float, default=16.0)
+    parser.add_argument("--correlation-moments", action="store_true")
+    parser.add_argument("--correlation-temperature", type=float, default=0.1)
     return parser.parse_args()
 
 

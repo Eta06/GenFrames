@@ -56,3 +56,21 @@ def test_local_correspondence_variant_starts_from_same_function() -> None:
     expected = LinearBlend()(frame0, frame1, 0.5).frame
     assert torch.allclose(output.frame, expected, atol=1e-6)
     assert output.auxiliary["correspondence_velocity"].shape == (1, 2, 32, 40)
+
+
+def test_explicit_moment_variant_starts_from_same_function() -> None:
+    frame0 = torch.rand((1, 3, 32, 40))
+    frame1 = torch.rand_like(frame0)
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=8,
+            coarse_velocity=True,
+            correlation_radius=2,
+            correspondence_channels=4,
+            correlation_moments=True,
+        )
+    )
+    output = model(frame0, frame1, 0.5)
+    expected = LinearBlend()(frame0, frame1, 0.5).frame
+    assert torch.allclose(output.frame, expected, atol=1e-6)
+    assert output.auxiliary["correspondence_moment_scale"].shape == ()
