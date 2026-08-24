@@ -13,7 +13,7 @@ checkpoints:
     overwrite: forbidden
 
   - id: prism-coarse-explicit-displacement-davis-mixed-001
-    status: candidate-awaiting-human-ab
+    status: research-reject-perceptually-indistinguishable
     architecture: GenFramesBilateralFlow+CoarseVelocity+ExplicitDisplacement
     parameters: 669051
     storage_relative_path: checkpoints/prism-coarse-explicit-displacement-davis-mixed-001/model.safetensors
