@@ -20,11 +20,13 @@ BASELINE_ID = "prism-bilateral-flow-davis-mixed-001"
 CHALLENGER_ID = "prism-bilateral-flow-coarse-davis-mixed-001"
 ORACLE_WARP_ID = "prism-coarse-oracle-warp-davis-mixed-001"
 LOCAL_CORRELATION_ID = "prism-coarse-local-correlation-davis-mixed-001"
+EXPLICIT_DISPLACEMENT_ID = "prism-coarse-explicit-displacement-davis-mixed-001"
 MODEL_SPECS = {
-    BASELINE_ID: {"coarse": False, "radius": 0},
-    CHALLENGER_ID: {"coarse": True, "radius": 0},
-    ORACLE_WARP_ID: {"coarse": True, "radius": 0},
-    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4},
+    BASELINE_ID: {"coarse": False, "radius": 0, "moments": False},
+    CHALLENGER_ID: {"coarse": True, "radius": 0, "moments": False},
+    ORACLE_WARP_ID: {"coarse": True, "radius": 0, "moments": False},
+    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4, "moments": False},
+    EXPLICIT_DISPLACEMENT_ID: {"coarse": True, "radius": 4, "moments": True},
 }
 
 
@@ -70,7 +72,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[LOCAL_CORRELATION_ID],
+                outputs[EXPLICIT_DISPLACEMENT_ID],
             )
             cases.append(
                 {
@@ -199,13 +201,14 @@ def _stress_score(sample: dict[str, torch.Tensor | str]) -> float:
     return float(moving.float().mean() + 0.5 * objects.float().mean())
 
 
-def _load_model(layout, checkpoint_id, *, coarse, radius, device):
+def _load_model(layout, checkpoint_id, *, coarse, radius, moments, device):
     model = GenFramesBilateralFlow(
         BilateralFlowConfig(
             base_channels=24,
             max_flow=20.0,
             coarse_velocity=coarse,
             correlation_radius=radius,
+            correlation_moments=moments,
         )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))
@@ -289,7 +292,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--storage-root")
     parser.add_argument("--ab-experiment", default="prism-human-ab-002")
-    parser.add_argument("--output-name", default="diagnostics-local-correlation-001")
+    parser.add_argument("--output-name", default="diagnostics-explicit-displacement-001")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
