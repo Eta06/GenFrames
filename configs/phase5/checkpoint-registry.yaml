@@ -12,6 +12,21 @@ checkpoints:
     provenance_risk: green
     overwrite: forbidden
 
+  - id: prism-coarse-explicit-displacement-davis-mixed-001
+    status: candidate-awaiting-human-ab
+    architecture: GenFramesBilateralFlow+CoarseVelocity+ExplicitDisplacement
+    parameters: 669051
+    storage_relative_path: checkpoints/prism-coarse-explicit-displacement-davis-mixed-001/model.safetensors
+    sha256: 668751060c520010ebbe3134cfb9b211c34d7508206a5845393a33d8b5821ff7
+    initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+    validation:
+      davis_300_rgb_mae: 0.062353079387297235
+      davis_300_rgb_psnr_db: 21.09707095781962
+      analytic_256_rgb_psnr_db: 36.00721754133701
+      hard_case_flow_alignment_gain_db: 0.0311
+    provenance_risk: yellow
+    overwrite: forbidden
+
   - id: prism-coarse-local-correlation-davis-mixed-001
     status: research-revise-not-promoted
     architecture: GenFramesBilateralFlow+CoarseVelocity+LocalCorrelation
