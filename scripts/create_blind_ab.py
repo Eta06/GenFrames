@@ -16,8 +16,8 @@ from genframes.data import DatasetManifest, ManifestFrameDataset, Split
 from genframes.models import BilateralFlowConfig, GenFramesBilateralFlow
 from genframes.storage import StorageLayout
 
-BASELINE_ID = "prism-bilateral-flow-davis-mixed-001"
-CHALLENGER_ID = "prism-bilateral-flow-coarse-davis-mixed-001"
+BASELINE_ID = "prism-coarse-oracle-warp-davis-mixed-001"
+CHALLENGER_ID = "prism-coarse-explicit-displacement-davis-mixed-001"
 
 
 def main() -> None:
@@ -53,8 +53,10 @@ def main() -> None:
         if len(selected) == arguments.cases:
             break
     device = torch.device(arguments.device)
-    baseline = _load_model(layout, BASELINE_ID, coarse=False, device=device)
-    challenger = _load_model(layout, CHALLENGER_ID, coarse=True, device=device)
+    baseline = _load_model(layout, BASELINE_ID, coarse=True, device=device)
+    challenger = _load_model(
+        layout, CHALLENGER_ID, coarse=True, radius=4, moments=True, device=device
+    )
     blind_random = random.Random(arguments.blinding_seed)
     public_cases: list[dict[str, object]] = []
     private_key: list[dict[str, str]] = []
@@ -113,10 +115,22 @@ def main() -> None:
 
 
 def _load_model(
-    layout: StorageLayout, checkpoint_id: str, *, coarse: bool, device: torch.device
+    layout: StorageLayout,
+    checkpoint_id: str,
+    *,
+    coarse: bool,
+    radius: int = 0,
+    moments: bool = False,
+    device: torch.device,
 ) -> GenFramesBilateralFlow:
     model = GenFramesBilateralFlow(
-        BilateralFlowConfig(base_channels=24, max_flow=20.0, coarse_velocity=coarse)
+        BilateralFlowConfig(
+            base_channels=24,
+            max_flow=20.0,
+            coarse_velocity=coarse,
+            correlation_radius=radius,
+            correlation_moments=moments,
+        )
     )
     path = layout.checkpoints / checkpoint_id / "model.safetensors"
     model.load_state_dict(load_file(path))
@@ -155,7 +169,7 @@ def _to_pil(value: torch.Tensor | str) -> Image.Image:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment-id", default="prism-human-ab-002")
+    parser.add_argument("--experiment-id", default="prism-human-ab-explicit-displacement-001")
     parser.add_argument("--storage-root")
     parser.add_argument("--cases", type=int, default=6)
     parser.add_argument("--subset-seed", type=int, default=2405)
