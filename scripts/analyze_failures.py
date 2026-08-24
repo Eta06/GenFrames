@@ -19,10 +19,12 @@ from genframes.storage import StorageLayout
 BASELINE_ID = "prism-bilateral-flow-davis-mixed-001"
 CHALLENGER_ID = "prism-bilateral-flow-coarse-davis-mixed-001"
 ORACLE_WARP_ID = "prism-coarse-oracle-warp-davis-mixed-001"
+LOCAL_CORRELATION_ID = "prism-coarse-local-correlation-davis-mixed-001"
 MODEL_SPECS = {
-    BASELINE_ID: False,
-    CHALLENGER_ID: True,
-    ORACLE_WARP_ID: True,
+    BASELINE_ID: {"coarse": False, "radius": 0},
+    CHALLENGER_ID: {"coarse": True, "radius": 0},
+    ORACLE_WARP_ID: {"coarse": True, "radius": 0},
+    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4},
 }
 
 
@@ -43,8 +45,8 @@ def main() -> None:
     selected = _select_cases(dataset, subset_seed=2405, count=6)
     device = torch.device(arguments.device)
     models = {
-        model_id: _load_model(layout, model_id, coarse=coarse, device=device)
-        for model_id, coarse in MODEL_SPECS.items()
+        model_id: _load_model(layout, model_id, device=device, **spec)
+        for model_id, spec in MODEL_SPECS.items()
     }
     cases: list[dict[str, object]] = []
     with torch.inference_mode():
@@ -68,7 +70,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[ORACLE_WARP_ID],
+                outputs[LOCAL_CORRELATION_ID],
             )
             cases.append(
                 {
@@ -197,9 +199,14 @@ def _stress_score(sample: dict[str, torch.Tensor | str]) -> float:
     return float(moving.float().mean() + 0.5 * objects.float().mean())
 
 
-def _load_model(layout, checkpoint_id, *, coarse, device):
+def _load_model(layout, checkpoint_id, *, coarse, radius, device):
     model = GenFramesBilateralFlow(
-        BilateralFlowConfig(base_channels=24, max_flow=20.0, coarse_velocity=coarse)
+        BilateralFlowConfig(
+            base_channels=24,
+            max_flow=20.0,
+            coarse_velocity=coarse,
+            correlation_radius=radius,
+        )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))
     return model.to(device).eval()
@@ -282,7 +289,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--storage-root")
     parser.add_argument("--ab-experiment", default="prism-human-ab-002")
-    parser.add_argument("--output-name", default="diagnostics-oracle-warp-001")
+    parser.add_argument("--output-name", default="diagnostics-local-correlation-001")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
