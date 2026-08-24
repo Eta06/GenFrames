@@ -12,6 +12,21 @@ checkpoints:
     provenance_risk: green
     overwrite: forbidden
 
+  - id: prism-coarse-local-correlation-davis-mixed-001
+    status: research-revise-not-promoted
+    architecture: GenFramesBilateralFlow+CoarseVelocity+LocalCorrelation
+    parameters: 667898
+    storage_relative_path: checkpoints/prism-coarse-local-correlation-davis-mixed-001/model.safetensors
+    sha256: f53abc6cc6ede17cf3a0b842d82f3c825c0cd903763e7839b2e4beb4c31a506d
+    initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+    validation:
+      davis_300_rgb_mae: 0.0648401671430717
+      davis_300_rgb_psnr_db: 20.72393208503723
+      analytic_256_rgb_psnr_db: 35.34636453539133
+      hard_case_flow_alignment_gain_db: -0.4081527392069499
+    provenance_risk: yellow
+    overwrite: forbidden
+
   - id: prism-bilateral-flow-davis-mixed-001
     status: frozen-real-video-baseline
     architecture: GenFramesBilateralFlow
