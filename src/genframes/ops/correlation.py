@@ -32,3 +32,17 @@ def correlation_shift_index(delta_y: int, delta_x: int, radius: int) -> int:
         raise ValueError("shift lies outside correlation radius")
     diameter = 2 * radius + 1
     return (delta_y + radius) * diameter + delta_x + radius
+
+
+def correlation_soft_argmax(costs: Tensor, radius: int, temperature: float = 0.1) -> Tensor:
+    """Convert correlation channels into expected `(dx, dy)` feature-pixel shifts."""
+    diameter = 2 * radius + 1
+    if costs.ndim != 4 or costs.shape[1] != diameter**2:
+        raise ValueError("cost channels do not match the requested radius")
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
+    shifts = torch.arange(-radius, radius + 1, device=costs.device, dtype=costs.dtype)
+    delta_y, delta_x = torch.meshgrid(shifts, shifts, indexing="ij")
+    coordinates = torch.stack((delta_x.flatten(), delta_y.flatten()), dim=0)
+    probabilities = torch.softmax(costs / temperature, dim=1)
+    return torch.einsum("bkhw,ck->bchw", probabilities, coordinates)

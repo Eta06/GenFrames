@@ -1,6 +1,6 @@
 import torch
 
-from genframes.ops import correlation_shift_index, local_correlation
+from genframes.ops import correlation_shift_index, correlation_soft_argmax, local_correlation
 
 
 def test_local_correlation_finds_known_positive_x_shift() -> None:
@@ -22,3 +22,11 @@ def test_local_correlation_shape_and_gradients() -> None:
     output.mean().backward()
     assert first.grad is not None and torch.isfinite(first.grad).all()
     assert second.grad is not None and torch.isfinite(second.grad).all()
+
+
+def test_soft_argmax_decodes_explicit_displacement() -> None:
+    costs = torch.full((1, 25, 2, 3), -10.0)
+    costs[:, correlation_shift_index(-1, 2, radius=2)] = 10.0
+    displacement = correlation_soft_argmax(costs, radius=2, temperature=0.1)
+    assert torch.allclose(displacement[:, 0], torch.full((1, 2, 3), 2.0))
+    assert torch.allclose(displacement[:, 1], torch.full((1, 2, 3), -1.0))
