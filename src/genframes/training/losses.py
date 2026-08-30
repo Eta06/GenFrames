@@ -17,6 +17,7 @@ class LossConfig:
     bilateral_flow_weight: float = 0.01
     static_flow_weight: float = 0.1
     warp_oracle_weight: float = 0.0
+    visibility_weight: float = 0.0
     epsilon: float = 1e-3
 
 
@@ -46,6 +47,7 @@ class InterpolationLoss(nn.Module):
         ).abs().mean()
         flow = prediction.new_zeros(())
         warp_oracle = prediction.new_zeros(())
+        visibility = prediction.new_zeros(())
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
@@ -69,10 +71,13 @@ class InterpolationLoss(nn.Module):
             warp_oracle = oracle_warp_loss(
                 auxiliary["warped0"], auxiliary["warped1"], target, self.config.epsilon
             )
+        if batch is not None and "weight1" in auxiliary and "visibility0" in batch:
+            visibility = visibility_blend_loss(auxiliary["weight1"], batch, prediction)
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
             + self.config.bilateral_flow_weight * flow
             + self.config.warp_oracle_weight * warp_oracle
+            + self.config.visibility_weight * visibility
         )
         return {
             "total": total,
@@ -80,6 +85,7 @@ class InterpolationLoss(nn.Module):
             "edge": edge,
             "flow": flow,
             "warp_oracle": warp_oracle,
+            "visibility": visibility,
         }
 
 
@@ -122,6 +128,35 @@ def oracle_warp_loss(
     error0 = torch.sqrt((warped0 - target).square() + epsilon**2).mean(dim=1)
     error1 = torch.sqrt((warped1 - target).square() + epsilon**2).mean(dim=1)
     return torch.minimum(error0, error1).mean()
+
+
+def visibility_blend_loss(
+    prediction_weight1: Tensor, batch: dict[str, object], reference: Tensor
+) -> Tensor:
+    """Supervise fusion weights where synthetic endpoint visibility is exact."""
+    visibility0 = _batch_tensor(batch, "visibility0", reference)
+    visibility1 = _batch_tensor(batch, "visibility1", reference)
+    valid = _optional_batch_tensor(batch, "visibility_valid", reference)
+    if valid is not None:
+        valid = valid.bool().flatten()
+        prediction_weight1 = prediction_weight1[valid]
+        visibility0 = visibility0[valid]
+        visibility1 = visibility1[valid]
+    if prediction_weight1.shape[0] == 0:
+        return prediction_weight1.new_zeros(())
+    target_time = _batch_tensor(batch, "time", reference).flatten()
+    if valid is not None:
+        target_time = target_time[valid]
+    target_time = target_time[:, None, None, None]
+    contribution0 = visibility0 * (1.0 - target_time)
+    contribution1 = visibility1 * target_time
+    denominator = contribution0 + contribution1
+    usable = denominator > 1e-6
+    target_weight1 = contribution1 / denominator.clamp_min(1e-6)
+    error = torch.nn.functional.smooth_l1_loss(
+        prediction_weight1, target_weight1, reduction="none"
+    )
+    return (error * usable).sum() / usable.sum().clamp_min(1)
 
 
 def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tensor:

@@ -50,6 +50,9 @@ class MixedFrameDataset(Dataset[dict[str, Tensor | str]]):
         sample.setdefault("flow_valid", torch.tensor(source == "synthetic"))
         sample.setdefault("object_mask", torch.zeros((1, height, width), dtype=torch.bool))
         sample.setdefault("moving_mask", torch.zeros((1, height, width), dtype=torch.bool))
+        sample.setdefault("visibility0", torch.ones((1, height, width), dtype=reference.dtype))
+        sample.setdefault("visibility1", torch.ones((1, height, width), dtype=reference.dtype))
+        sample.setdefault("visibility_valid", torch.tensor(source == "synthetic"))
         sample["source_kind"] = source
         common_fields = (
             "frame0",
@@ -61,6 +64,9 @@ class MixedFrameDataset(Dataset[dict[str, Tensor | str]]):
             "flow_valid",
             "object_mask",
             "moving_mask",
+            "visibility0",
+            "visibility1",
+            "visibility_valid",
             "sequence_id",
             "source_kind",
         )

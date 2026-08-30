@@ -36,6 +36,8 @@ def test_manifest_frames_and_mixture_share_training_contract(tmp_path: Path) -> 
     mixed_sample = mixed[1]
     assert mixed_sample["flow_t0"].shape == (2, 16, 20)
     assert mixed_sample["source_kind"] == "real"
+    assert mixed_sample["visibility0"].shape == (1, 16, 20)
+    assert not mixed_sample["visibility_valid"]
 
 
 def _manifest() -> DatasetManifest:

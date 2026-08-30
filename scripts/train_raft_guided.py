@@ -98,6 +98,7 @@ def main() -> None:
         bilateral_flow_weight=0.0,
         warp_oracle_weight=0.0,
         edge_weight=arguments.edge_weight,
+        visibility_weight=arguments.visibility_weight,
     )
     device = torch.device(arguments.device)
     if device.type == "cuda":
@@ -206,8 +207,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--storage-root")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--steps", type=int, default=3000)
-    parser.add_argument("--batch-size", type=int, default=2)
-    parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--mixture-samples", type=int, default=8192)
     parser.add_argument("--validation-samples", type=int, default=64)
     parser.add_argument("--crop-size", type=int, default=256)
@@ -215,6 +216,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--real-weight", type=float, default=0.85)
     parser.add_argument("--gopro-weight", type=float, default=0.8)
     parser.add_argument("--edge-weight", type=float, default=0.1)
+    parser.add_argument("--visibility-weight", type=float, default=0.05)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=6101)

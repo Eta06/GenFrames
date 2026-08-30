@@ -1,6 +1,10 @@
 import torch
 
-from genframes.training.losses import balanced_flow_loss, oracle_warp_loss
+from genframes.training.losses import (
+    balanced_flow_loss,
+    oracle_warp_loss,
+    visibility_blend_loss,
+)
 
 
 def test_balanced_flow_loss_does_not_dilute_sparse_motion() -> None:
@@ -48,3 +52,15 @@ def test_oracle_warp_loss_accepts_one_aligned_endpoint_per_pixel() -> None:
     loss = oracle_warp_loss(target, wrong, target)
     assert loss < 0.0011
     assert oracle_warp_loss(wrong, wrong, target) > loss
+
+
+def test_visibility_blend_loss_prefers_only_visible_endpoint() -> None:
+    reference = torch.zeros((1, 3, 2, 2))
+    batch = {
+        "visibility0": torch.zeros((1, 1, 2, 2)),
+        "visibility1": torch.ones((1, 1, 2, 2)),
+        "visibility_valid": torch.tensor([True]),
+        "time": torch.tensor([0.5]),
+    }
+    assert visibility_blend_loss(torch.ones((1, 1, 2, 2)), batch, reference) == 0
+    assert visibility_blend_loss(torch.zeros((1, 1, 2, 2)), batch, reference) > 0
