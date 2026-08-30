@@ -22,13 +22,27 @@ ORACLE_WARP_ID = "prism-coarse-oracle-warp-davis-mixed-001"
 LOCAL_CORRELATION_ID = "prism-coarse-local-correlation-davis-mixed-001"
 EXPLICIT_DISPLACEMENT_ID = "prism-coarse-explicit-displacement-davis-mixed-001"
 PYRAMID_SINGLE_FLOW_ID = "prism-structural-pyramid-single-flow-davis-mixed-001"
+INDEPENDENT_ENDPOINT_ID = "prism-independent-endpoint-flow-privileged-davis-mixed-001"
+
+
+def _spec(*, coarse=False, radius=0, moments=False, pyramid=False, independent=False):
+    return {
+        "coarse": coarse,
+        "radius": radius,
+        "moments": moments,
+        "pyramid": pyramid,
+        "independent": independent,
+    }
+
+
 MODEL_SPECS = {
-    BASELINE_ID: {"coarse": False, "radius": 0, "moments": False, "pyramid": False},
-    CHALLENGER_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": False},
-    ORACLE_WARP_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": False},
-    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4, "moments": False, "pyramid": False},
-    EXPLICIT_DISPLACEMENT_ID: {"coarse": True, "radius": 4, "moments": True, "pyramid": False},
-    PYRAMID_SINGLE_FLOW_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": True},
+    BASELINE_ID: _spec(),
+    CHALLENGER_ID: _spec(coarse=True),
+    ORACLE_WARP_ID: _spec(coarse=True),
+    LOCAL_CORRELATION_ID: _spec(coarse=True, radius=4),
+    EXPLICIT_DISPLACEMENT_ID: _spec(coarse=True, radius=4, moments=True),
+    PYRAMID_SINGLE_FLOW_ID: _spec(coarse=True, pyramid=True),
+    INDEPENDENT_ENDPOINT_ID: _spec(coarse=True, independent=True),
 }
 
 
@@ -74,7 +88,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[PYRAMID_SINGLE_FLOW_ID],
+                outputs[INDEPENDENT_ENDPOINT_ID],
             )
             cases.append(
                 {
@@ -203,7 +217,9 @@ def _stress_score(sample: dict[str, torch.Tensor | str]) -> float:
     return float(moving.float().mean() + 0.5 * objects.float().mean())
 
 
-def _load_model(layout, checkpoint_id, *, coarse, radius, moments, pyramid, device):
+def _load_model(
+    layout, checkpoint_id, *, coarse, radius, moments, pyramid, independent, device
+):
     model = GenFramesBilateralFlow(
         BilateralFlowConfig(
             base_channels=24,
@@ -212,6 +228,7 @@ def _load_model(layout, checkpoint_id, *, coarse, radius, moments, pyramid, devi
             correlation_radius=radius,
             correlation_moments=moments,
             pyramid_refinement=pyramid,
+            independent_endpoint_flows=independent,
         )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))
