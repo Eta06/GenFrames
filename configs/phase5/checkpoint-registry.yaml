@@ -1,4 +1,22 @@
 checkpoints:
+  - id: prism-independent-endpoint-flow-privileged-davis-mixed-001
+    status: research-revise-matcher-underfit-not-promoted
+    architecture: GenFramesBilateralFlow+IndependentEndpointFlows
+    parameters: 551676
+    storage_relative_path: checkpoints/prism-independent-endpoint-flow-privileged-davis-mixed-001/model.safetensors
+    sha256: c95d8d6c0462992675c7fdae7396a97102bba47932a2df06a1f09f2c563127a9
+    initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+    training_teacher: torchvision-raft-small-C_T_V2
+    validation:
+      davis_300_rgb_mae: 0.06412406395499905
+      davis_300_rgb_psnr_db: 20.913234262466432
+      analytic_256_rgb_psnr_db: 34.87041172385216
+      analytic_256_moving_flow_epe: 3.0036824946291745
+      hard_case_flow_alignment_gain_db: -0.15140279134114584
+      hard_cases_improved_over_initial: 4
+    provenance_risk: yellow
+    overwrite: forbidden
+
   - id: prism-structural-pyramid-single-flow-davis-mixed-001
     status: research-reject-hard-case-alignment-regression
     architecture: GenFramesBilateralFlow+CoarseVelocity+PyramidSingleFlow
