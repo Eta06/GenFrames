@@ -26,6 +26,22 @@ def test_balanced_flow_loss_ignores_real_samples_without_flow() -> None:
     assert torch.allclose(loss, torch.tensor(2**0.5), atol=1e-5)
 
 
+def test_balanced_flow_loss_respects_teacher_spatial_mask() -> None:
+    target = torch.zeros((1, 2, 4, 4))
+    target[:, 0, 1, 1] = 3.0
+    target[:, 0, 2, 2] = 9.0
+    prediction = torch.zeros_like(target)
+    mask = torch.zeros((1, 1, 4, 4), dtype=torch.bool)
+    mask[:, :, 1, 1] = True
+    loss = balanced_flow_loss(
+        prediction,
+        target,
+        static_weight=0.0,
+        spatial_mask=mask,
+    )
+    assert torch.allclose(loss, torch.tensor(3.0), atol=1e-5)
+
+
 def test_oracle_warp_loss_accepts_one_aligned_endpoint_per_pixel() -> None:
     target = torch.rand((1, 3, 8, 8))
     wrong = 1.0 - target

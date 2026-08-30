@@ -1,0 +1,44 @@
+experiment_id: prism-independent-endpoint-flow-privileged-davis-mixed-001
+initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+
+model:
+  name: GenFramesBilateralFlow
+  base_channels: 24
+  max_flow: 20.0
+  coarse_velocity: true
+  independent_endpoint_flows: true
+  independent_velocity_limit: 512.0
+  fusion: unchanged_bilateral_warp_blend_residual
+
+teacher:
+  training_only: true
+  name: torchvision-raft-small
+  weights: Raft_Small_Weights.C_T_V2
+  input: ground_truth_target_to_each_endpoint
+  task_oriented_mask: teacher_warp_better_than_raw_and_mae_below_0.15
+  inference_dependency: false
+
+data:
+  real_weight: 0.75
+  synthetic_weight: 0.25
+  crop_size: 256
+  mixture_samples: 4096
+  synthetic_flow_source: exact_analytic
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  amp: true
+  seed: 5101
+
+loss:
+  bilateral_flow_weight: 0.01
+  static_flow_weight: 0.1
+  warp_oracle_weight: 0.2
+
+acceptance:
+  aggregate_hard_case_alignment_positive: true
+  gains_must_span_multiple_hard_cases: true
+  visible_ghosting_reduction_required: true
+  blind_ab_only_after_clear_visual_gain: true

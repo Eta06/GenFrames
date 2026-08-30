@@ -50,10 +50,20 @@ class InterpolationLoss(nn.Module):
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
             valid = _optional_batch_tensor(batch, "flow_valid", prediction)
+            mask0 = _optional_batch_tensor(batch, "flow_mask_t0", prediction)
+            mask1 = _optional_batch_tensor(batch, "flow_mask_t1", prediction)
             flow = balanced_flow_loss(
-                auxiliary["flow_t0"], target_flow0, self.config.static_flow_weight, valid
+                auxiliary["flow_t0"],
+                target_flow0,
+                self.config.static_flow_weight,
+                valid,
+                mask0,
             ) + balanced_flow_loss(
-                auxiliary["flow_t1"], target_flow1, self.config.static_flow_weight, valid
+                auxiliary["flow_t1"],
+                target_flow1,
+                self.config.static_flow_weight,
+                valid,
+                mask1,
             )
         if "warped0" in auxiliary and "warped1" in auxiliary:
             warp_oracle = oracle_warp_loss(
@@ -82,6 +92,7 @@ def balanced_flow_loss(
     target: Tensor,
     static_weight: float = 0.1,
     valid_samples: Tensor | None = None,
+    spatial_mask: Tensor | None = None,
 ) -> Tensor:
     """Normalize moving and static regions separately to avoid zero-flow collapse."""
     if valid_samples is not None:
@@ -90,9 +101,15 @@ def balanced_flow_loss(
         target = target[valid_samples]
         if prediction.shape[0] == 0:
             return prediction.new_zeros(())
+        if spatial_mask is not None:
+            spatial_mask = spatial_mask[valid_samples]
     endpoint_error = torch.sqrt((prediction - target).square().sum(dim=1, keepdim=True) + 1e-6)
     moving = target.square().sum(dim=1, keepdim=True) > 1e-8
+    if spatial_mask is not None:
+        moving = moving & spatial_mask.bool()
     stationary = ~moving
+    if spatial_mask is not None:
+        stationary = stationary & spatial_mask.bool()
     moving_loss = (endpoint_error * moving).sum() / moving.sum().clamp_min(1)
     stationary_loss = (endpoint_error * stationary).sum() / stationary.sum().clamp_min(1)
     return moving_loss + static_weight * stationary_loss

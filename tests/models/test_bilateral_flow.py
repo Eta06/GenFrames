@@ -134,3 +134,36 @@ def test_pyramid_refinement_supports_cuda_autocast() -> None:
         output = model(frame0, frame1, 0.5)
         output.frame.mean().backward()
     assert torch.isfinite(output.frame).all()
+
+
+def test_independent_endpoint_flows_start_from_same_function() -> None:
+    frame0 = torch.rand((1, 3, 31, 39))
+    frame1 = torch.rand_like(frame0)
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=8,
+            coarse_velocity=True,
+            independent_endpoint_flows=True,
+        )
+    )
+    output = model(frame0, frame1, 0.25)
+    expected = LinearBlend()(frame0, frame1, 0.25).frame
+    assert torch.allclose(output.frame, expected, atol=1e-6)
+    assert output.auxiliary["independent_velocity"].shape == (1, 4, 31, 39)
+    assert torch.count_nonzero(output.auxiliary["independent_velocity"]) == 0
+
+
+def test_independent_endpoint_head_can_break_shared_velocity_constraint() -> None:
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(base_channels=8, independent_endpoint_flows=True)
+    )
+    assert model.independent_flow_head is not None
+    with torch.no_grad():
+        model.independent_flow_head.bias.copy_(torch.tensor((0.1, 0.0, -0.1, 0.0)))
+    frame0 = torch.rand((1, 3, 24, 24))
+    frame1 = torch.rand_like(frame0)
+    output = model(frame0, frame1, 0.5)
+    assert not torch.allclose(
+        output.auxiliary["endpoint_velocity0"],
+        output.auxiliary["endpoint_velocity1"],
+    )

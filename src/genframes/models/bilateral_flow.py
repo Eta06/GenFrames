@@ -30,6 +30,8 @@ class BilateralFlowConfig:
     pyramid_refinement: bool = False
     pyramid_channels: tuple[int, ...] = (12, 16, 24, 32)
     pyramid_radii: tuple[int, ...] = (2, 2, 2, 4)
+    independent_endpoint_flows: bool = False
+    independent_velocity_limit: float = 512.0
 
 
 class GenFramesBilateralFlow(FrameInterpolator):
@@ -105,6 +107,11 @@ class GenFramesBilateralFlow(FrameInterpolator):
                 radii=self.config.pyramid_radii,
                 temperature=self.config.correlation_temperature,
             )
+        self.independent_flow_head: nn.Conv2d | None = None
+        if self.config.independent_endpoint_flows:
+            self.independent_flow_head = nn.Conv2d(channels, 4, kernel_size=3, padding=1)
+            nn.init.zeros_(self.independent_flow_head.weight)
+            nn.init.zeros_(self.independent_flow_head.bias)
 
     def forward(self, frame0: Tensor, frame1: Tensor, time: Tensor | float) -> InterpolationOutput:
         self.validate_frames(frame0, frame1)
@@ -190,8 +197,18 @@ class GenFramesBilateralFlow(FrameInterpolator):
             velocity, pyramid_diagnostics = self.pyramid_refiner(
                 frame0, frame1, target_time, velocity
             )
-        flow_t0 = -target_time * velocity
-        flow_t1 = (1.0 - target_time) * velocity
+        endpoint_velocity0 = velocity
+        endpoint_velocity1 = velocity
+        independent_velocity = None
+        if self.independent_flow_head is not None:
+            independent_logits = self.independent_flow_head(decoded0)
+            independent_velocity = (
+                self.config.independent_velocity_limit * independent_logits.tanh()
+            )
+            endpoint_velocity0 = velocity + independent_velocity[:, :2]
+            endpoint_velocity1 = velocity + independent_velocity[:, 2:]
+        flow_t0 = -target_time * endpoint_velocity0
+        flow_t1 = (1.0 - target_time) * endpoint_velocity1
         warped0 = backward_warp(frame0, flow_t0)
         warped1 = backward_warp(frame1, flow_t1)
         target_logit = torch.logit(target_time.clamp(1e-4, 1.0 - 1e-4))
@@ -214,5 +231,11 @@ class GenFramesBilateralFlow(FrameInterpolator):
             auxiliary["correspondence_velocity"] = correspondence_velocity
         if self.config.correlation_moments:
             auxiliary["correspondence_moment_scale"] = self.correspondence_moment_scale
+        if independent_velocity is not None:
+            auxiliary["base_velocity"] = velocity
+            auxiliary["endpoint_velocity0"] = endpoint_velocity0
+            auxiliary["endpoint_velocity1"] = endpoint_velocity1
+            auxiliary["independent_velocity"] = independent_velocity
+            auxiliary["velocity"] = flow_t1 - flow_t0
         auxiliary.update(pyramid_diagnostics)
         return InterpolationOutput(frame=frame, auxiliary=auxiliary)

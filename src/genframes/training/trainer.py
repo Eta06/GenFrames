@@ -14,6 +14,7 @@ from torch import Tensor
 from genframes.models import FrameInterpolator
 
 from .losses import InterpolationLoss
+from .privileged_teacher import PrivilegedRaftSmallTeacher
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ def train_steps(
     config: TrainConfig,
     criterion: InterpolationLoss | None = None,
     callback: Callable[[int, dict[str, float]], None] | None = None,
+    privileged_teacher: PrivilegedRaftSmallTeacher | None = None,
 ) -> TrainResult:
     if config.steps <= 0:
         raise ValueError("training steps must be positive")
@@ -68,10 +70,15 @@ def train_steps(
         frame1 = _tensor(batch, "frame1", device)
         target = _tensor(batch, "target", device)
         time = _tensor(batch, "time", device)
+        loss_batch = (
+            privileged_teacher.enrich_batch(batch, frame0, frame1, target)
+            if privileged_teacher is not None
+            else batch
+        )
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type=device.type, enabled=amp_enabled):
             output = model(frame0, frame1, time)
-            components = criterion(output, target, batch)
+            components = criterion(output, target, loss_batch)
         scaler.scale(components["total"]).backward()
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip_norm)

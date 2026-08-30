@@ -23,7 +23,13 @@ from genframes.data import (
 from genframes.eval import evaluate_model
 from genframes.models import BilateralFlowConfig, GenFramesBilateralFlow, LinearBlend
 from genframes.storage import StorageLayout
-from genframes.training import InterpolationLoss, LossConfig, TrainConfig, train_steps
+from genframes.training import (
+    InterpolationLoss,
+    LossConfig,
+    PrivilegedRaftSmallTeacher,
+    TrainConfig,
+    train_steps,
+)
 
 
 def main() -> None:
@@ -73,6 +79,8 @@ def main() -> None:
         correlation_moments=arguments.correlation_moments,
         correlation_temperature=arguments.correlation_temperature,
         pyramid_refinement=arguments.pyramid_refinement,
+        independent_endpoint_flows=arguments.independent_endpoint_flows,
+        independent_velocity_limit=arguments.independent_velocity_limit,
     )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
@@ -99,6 +107,10 @@ def main() -> None:
         allowed_keys.update(
             key for key in model.state_dict() if key.startswith("pyramid_refiner.")
         )
+    if arguments.independent_endpoint_flows:
+        allowed_keys.update(
+            key for key in model.state_dict() if key.startswith("independent_flow_head.")
+        )
     if not set(incompatible.missing_keys).issubset(allowed_keys) or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
     train_config = TrainConfig(
@@ -113,6 +125,9 @@ def main() -> None:
         warp_oracle_weight=arguments.warp_oracle_weight,
     )
     device = torch.device(arguments.device)
+    privileged_teacher = (
+        PrivilegedRaftSmallTeacher(device) if arguments.privileged_raft_teacher else None
+    )
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
 
@@ -127,6 +142,7 @@ def main() -> None:
         config=train_config,
         criterion=InterpolationLoss(loss_config),
         callback=report,
+        privileged_teacher=privileged_teacher,
     )
     wall_seconds = time.perf_counter() - started
     real_validation = ManifestFrameDataset(
@@ -166,6 +182,11 @@ def main() -> None:
             "synthetic_weight": 1.0 - arguments.real_weight,
             "mixture_samples": arguments.mixture_samples,
             "crop_size": arguments.crop_size,
+            "privileged_flow_teacher": (
+                "torchvision-raft-small-C_T_V2"
+                if arguments.privileged_raft_teacher
+                else None
+            ),
         },
         "train_result": asdict(training_result),
         "wall_seconds": wall_seconds,
@@ -217,6 +238,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--correlation-moments", action="store_true")
     parser.add_argument("--correlation-temperature", type=float, default=0.1)
     parser.add_argument("--pyramid-refinement", action="store_true")
+    parser.add_argument("--independent-endpoint-flows", action="store_true")
+    parser.add_argument("--independent-velocity-limit", type=float, default=512.0)
+    parser.add_argument("--privileged-raft-teacher", action="store_true")
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")
