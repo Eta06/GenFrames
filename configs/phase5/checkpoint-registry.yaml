@@ -1,4 +1,24 @@
 checkpoints:
+  - id: prism-independent-pyramid-privileged-davis-mixed-001
+    status: research-reject-perceptual-ghosting-remains
+    architecture: GenFramesBilateralFlow+IndependentFlowPyramid
+    parameters: 791012
+    storage_relative_path: checkpoints/prism-independent-pyramid-privileged-davis-mixed-001/model.safetensors
+    sha256: a7c5319a544f5fab5fc487cbcd08bb62739258983e64c187ada1c8871206a214
+    initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+    training_teacher: torchvision-raft-small-C_T_V2
+    validation:
+      davis_300_rgb_mae: 0.06379067789452772
+      davis_300_rgb_psnr_db: 20.822496140797934
+      analytic_256_rgb_psnr_db: 33.92860221117735
+      analytic_256_moving_flow_epe: 3.17529627494514
+      hard_case_flow_alignment_gain_db: 0.12413136164347331
+      hard_cases_improved_over_initial: 6
+      hard_cases_absolute_positive_alignment: 2
+      perceptual_gate: failed
+    provenance_risk: yellow
+    overwrite: forbidden
+
   - id: prism-independent-endpoint-flow-privileged-davis-mixed-001
     status: research-revise-matcher-underfit-not-promoted
     architecture: GenFramesBilateralFlow+IndependentEndpointFlows
