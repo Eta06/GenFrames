@@ -1,4 +1,25 @@
 checkpoints:
+  - id: parallax-raft-region-assignment-gopro-001
+    status: research-reject-fragmented-fallback-and-seams
+    architecture: FrozenRAFTMultiField+HardRegionOwnership+Abstain
+    storage_relative_path: checkpoints/parallax-raft-region-assignment-gopro-001/selector.safetensors
+    sha256: 6bb987e262a74f0b0ae62f5731bb86688098b24b7650d65129987adfa8f8a634
+    trainable_parameters: 86635
+    research_oracle_total_parameters: 1076797
+    external_weights_bundled: false
+    validation:
+      davis_64_psnr_db: 24.75262463092804
+      davis_64_delta_vs_single_db: -0.6912042647600174
+      gopro_24_psnr_db: 37.94215599695841
+      gopro_24_delta_vs_single_db: -1.4731127421061294
+      hard_6_psnr_db: 17.756076494852703
+      hard_6_delta_vs_single_db: -0.4575187365214006
+      hard_6_mae_oracle_gap_closed: -0.027207144509958894
+      hard_6_abstain_fraction: 0.9265862703323364
+      hard_6_high_disagreement_ghosting_delta_vs_dense: 0.0519686471670866
+      analytic_disocclusion_ownership_accuracy: 0.6756576759119829
+      visual_gate: failed_fragmented_hard_warp_seams
+    overwrite: forbidden
   - id: parallax-raft-evidence-selector-gopro-001
     status: research-reject-insufficient-oracle-gap-closure
     architecture: FrozenRAFTMultiField+CycleEvidenceCoherentSelector
