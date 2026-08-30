@@ -23,6 +23,9 @@ class LossConfig:
     candidate_soft_target_temperature: float = 0.0
     selector_spatial_weight: float = 0.0
     selector_spatial_edge_scale: float = 10.0
+    region_assignment_weight: float = 0.0
+    unsupported_error_threshold: float = 0.04
+    ownership_weight: float = 0.0
     epsilon: float = 1e-3
 
 
@@ -55,6 +58,8 @@ class InterpolationLoss(nn.Module):
         visibility = prediction.new_zeros(())
         candidate_selection = prediction.new_zeros(())
         selector_spatial = prediction.new_zeros(())
+        region_assignment = prediction.new_zeros(())
+        ownership = prediction.new_zeros(())
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
@@ -88,12 +93,27 @@ class InterpolationLoss(nn.Module):
                 static_weight=self.config.candidate_static_weight,
                 soft_target_temperature=self.config.candidate_soft_target_temperature,
             )
-        if batch is not None and "candidate_weights" in auxiliary:
+        selector_weights = auxiliary.get(
+            "assignment_probabilities", auxiliary.get("candidate_weights")
+        )
+        if batch is not None and selector_weights is not None:
             selector_spatial = spatial_selector_loss(
-                auxiliary["candidate_weights"],
+                selector_weights,
                 batch,
                 prediction,
                 edge_scale=self.config.selector_spatial_edge_scale,
+            )
+        if "assignment_logits" in auxiliary and "candidate_stack" in auxiliary:
+            region_assignment = region_assignment_loss(
+                auxiliary["assignment_logits"],
+                auxiliary["candidate_stack"],
+                target,
+                unsupported_error_threshold=self.config.unsupported_error_threshold,
+                static_weight=self.config.candidate_static_weight,
+            )
+        if batch is not None and "source0_probability" in auxiliary:
+            ownership = ownership_visibility_loss(
+                auxiliary["source0_probability"], batch, prediction
             )
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
@@ -102,6 +122,8 @@ class InterpolationLoss(nn.Module):
             + self.config.visibility_weight * visibility
             + self.config.candidate_selection_weight * candidate_selection
             + self.config.selector_spatial_weight * selector_spatial
+            + self.config.region_assignment_weight * region_assignment
+            + self.config.ownership_weight * ownership
         )
         return {
             "total": total,
@@ -112,6 +134,8 @@ class InterpolationLoss(nn.Module):
             "visibility": visibility,
             "candidate_selection": candidate_selection,
             "selector_spatial": selector_spatial,
+            "region_assignment": region_assignment,
+            "ownership": ownership,
         }
 
 
@@ -233,6 +257,57 @@ def spatial_selector_loss(
     horizontal = (weight_dx * torch.exp(-edge_scale * guide_dx)).mean()
     vertical = (weight_dy * torch.exp(-edge_scale * guide_dy)).mean()
     return horizontal + vertical
+
+
+def region_assignment_loss(
+    logits: Tensor,
+    candidates: Tensor,
+    target: Tensor,
+    *,
+    unsupported_error_threshold: float = 0.04,
+    static_weight: float = 0.1,
+) -> Tensor:
+    """Supervise one of K fields, or abstention where no field explains the target."""
+    candidate_count = candidates.shape[1]
+    expected = (candidates.shape[0], candidate_count + 1, *candidates.shape[-2:])
+    if logits.shape != expected:
+        raise ValueError("assignment logits must have shape [B, K+1, H, W]")
+    errors = (candidates.detach() - target[:, None]).abs().mean(2)
+    oracle_error, labels = errors.min(1)
+    labels = torch.where(
+        oracle_error > unsupported_error_threshold,
+        torch.full_like(labels, candidate_count),
+        labels,
+    )
+    per_pixel = torch.nn.functional.cross_entropy(logits, labels, reduction="none")
+    conflict = candidates.detach().std(1).mean(1) > 0.05
+    unsupported = labels == candidate_count
+    weights = torch.where(conflict | unsupported, torch.ones_like(per_pixel), static_weight)
+    return (per_pixel * weights).sum() / weights.sum().clamp_min(1e-6)
+
+
+def ownership_visibility_loss(
+    source0_probability: Tensor, batch: dict[str, object], reference: Tensor
+) -> Tensor:
+    """Use exact synthetic visibility to supervise endpoint ownership at boundaries."""
+    visibility0 = _batch_tensor(batch, "visibility0", reference).bool()
+    visibility1 = _batch_tensor(batch, "visibility1", reference).bool()
+    valid = _optional_batch_tensor(batch, "visibility_valid", reference)
+    exclusive = visibility0 ^ visibility1
+    if valid is not None:
+        valid = valid.bool().flatten()
+        source0_probability = source0_probability[valid]
+        visibility0 = visibility0[valid]
+        exclusive = exclusive[valid]
+    if source0_probability.shape[0] == 0 or not exclusive.any():
+        return source0_probability.new_zeros(())
+    target_source0 = visibility0.float()
+    with torch.autocast(device_type=source0_probability.device.type, enabled=False):
+        probability = source0_probability.float().clamp(1e-5, 1 - 1e-5)
+        loss = torch.nn.functional.binary_cross_entropy(
+            probability, target_source0, reduction="none"
+        )
+    return loss[exclusive].mean()
 
 
 def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tensor:

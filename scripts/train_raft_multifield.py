@@ -25,9 +25,11 @@ from genframes.models import (
     GenFramesRaftEvidenceSelector,
     GenFramesRaftGuided,
     GenFramesRaftMultiField,
+    GenFramesRaftRegionAssignment,
     LinearBlend,
     RaftEvidenceSelectorConfig,
     RaftMultiFieldConfig,
+    RaftRegionAssignmentConfig,
 )
 from genframes.storage import StorageLayout
 from genframes.training import InterpolationLoss, LossConfig, TrainConfig, train_steps
@@ -87,7 +89,13 @@ def main() -> None:
         pin_memory=True,
         persistent_workers=arguments.workers > 0,
     )
-    if arguments.evidence_selector:
+    if arguments.region_assignment:
+        model_config = RaftRegionAssignmentConfig(
+            selector_channels=arguments.selector_channels,
+            region_stride=arguments.region_stride,
+        )
+        model = GenFramesRaftRegionAssignment(model_config)
+    elif arguments.evidence_selector:
         model_config = RaftEvidenceSelectorConfig(
             selector_channels=arguments.selector_channels
         )
@@ -112,6 +120,9 @@ def main() -> None:
         candidate_soft_target_temperature=arguments.soft_target_temperature,
         selector_spatial_weight=arguments.spatial_weight,
         selector_spatial_edge_scale=arguments.spatial_edge_scale,
+        region_assignment_weight=arguments.assignment_weight,
+        unsupported_error_threshold=arguments.unsupported_error_threshold,
+        ownership_weight=arguments.ownership_weight,
     )
     device = torch.device(arguments.device)
     if device.type == "cuda":
@@ -248,6 +259,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--crop-size", type=int, default=256)
     parser.add_argument("--selector-channels", type=int, default=32)
     parser.add_argument("--evidence-selector", action="store_true")
+    parser.add_argument("--region-assignment", action="store_true")
+    parser.add_argument("--region-stride", type=int, default=8)
     parser.add_argument("--real-weight", type=float, default=0.85)
     parser.add_argument("--gopro-weight", type=float, default=0.8)
     parser.add_argument("--edge-weight", type=float, default=0.1)
@@ -256,6 +269,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--soft-target-temperature", type=float, default=0.02)
     parser.add_argument("--spatial-weight", type=float, default=0.02)
     parser.add_argument("--spatial-edge-scale", type=float, default=10.0)
+    parser.add_argument("--assignment-weight", type=float, default=0.1)
+    parser.add_argument("--unsupported-error-threshold", type=float, default=0.04)
+    parser.add_argument("--ownership-weight", type=float, default=0.05)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=7201)

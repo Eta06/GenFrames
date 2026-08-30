@@ -4,6 +4,8 @@ from genframes.training.losses import (
     balanced_flow_loss,
     candidate_selection_loss,
     oracle_warp_loss,
+    ownership_visibility_loss,
+    region_assignment_loss,
     spatial_selector_loss,
     visibility_blend_loss,
 )
@@ -85,3 +87,28 @@ def test_spatial_selector_loss_is_zero_for_constant_weights() -> None:
     reference = torch.rand((1, 3, 4, 5))
     batch = {"frame0": reference, "frame1": reference}
     assert spatial_selector_loss(weights, batch, reference) == 0
+
+
+def test_region_assignment_uses_abstain_for_unsupported_pixels() -> None:
+    target = torch.zeros((1, 3, 2, 2))
+    candidates = torch.ones((1, 2, 3, 2, 2))
+    correct = torch.full((1, 3, 2, 2), -5.0)
+    correct[:, -1] = 5.0
+    wrong = -correct
+    assert region_assignment_loss(correct, candidates, target) < region_assignment_loss(
+        wrong, candidates, target
+    )
+
+
+def test_ownership_visibility_prefers_the_only_visible_endpoint() -> None:
+    reference = torch.zeros((1, 3, 2, 2))
+    batch = {
+        "visibility0": torch.ones((1, 1, 2, 2)),
+        "visibility1": torch.zeros((1, 1, 2, 2)),
+        "visibility_valid": torch.tensor([True]),
+    }
+    correct = torch.full((1, 1, 2, 2), 0.99)
+    wrong = torch.full((1, 1, 2, 2), 0.01)
+    assert ownership_visibility_loss(correct, batch, reference) < ownership_visibility_loss(
+        wrong, batch, reference
+    )

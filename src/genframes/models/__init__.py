@@ -7,6 +7,7 @@ from .mini import GenFramesMini, MiniConfig
 from .raft_evidence_selector import GenFramesRaftEvidenceSelector, RaftEvidenceSelectorConfig
 from .raft_guided import GenFramesRaftGuided, RaftGuidedConfig
 from .raft_multifield import GenFramesRaftMultiField, RaftMultiFieldConfig
+from .raft_region_assignment import GenFramesRaftRegionAssignment, RaftRegionAssignmentConfig
 
 __all__ = [
     "FrameInterpolator",
@@ -16,11 +17,13 @@ __all__ = [
     "GenFramesRaftGuided",
     "GenFramesRaftEvidenceSelector",
     "GenFramesRaftMultiField",
+    "GenFramesRaftRegionAssignment",
     "InterpolationOutput",
     "LinearBlend",
     "MiniConfig",
     "RaftGuidedConfig",
     "RaftEvidenceSelectorConfig",
     "RaftMultiFieldConfig",
+    "RaftRegionAssignmentConfig",
     "prepare_time",
 ]
