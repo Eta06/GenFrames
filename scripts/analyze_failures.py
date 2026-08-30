@@ -23,15 +23,25 @@ LOCAL_CORRELATION_ID = "prism-coarse-local-correlation-davis-mixed-001"
 EXPLICIT_DISPLACEMENT_ID = "prism-coarse-explicit-displacement-davis-mixed-001"
 PYRAMID_SINGLE_FLOW_ID = "prism-structural-pyramid-single-flow-davis-mixed-001"
 INDEPENDENT_ENDPOINT_ID = "prism-independent-endpoint-flow-privileged-davis-mixed-001"
+INDEPENDENT_PYRAMID_ID = "prism-independent-pyramid-privileged-davis-mixed-001"
 
 
-def _spec(*, coarse=False, radius=0, moments=False, pyramid=False, independent=False):
+def _spec(
+    *,
+    coarse=False,
+    radius=0,
+    moments=False,
+    pyramid=False,
+    independent=False,
+    independent_pyramid=False,
+):
     return {
         "coarse": coarse,
         "radius": radius,
         "moments": moments,
         "pyramid": pyramid,
         "independent": independent,
+        "independent_pyramid": independent_pyramid,
     }
 
 
@@ -43,6 +53,7 @@ MODEL_SPECS = {
     EXPLICIT_DISPLACEMENT_ID: _spec(coarse=True, radius=4, moments=True),
     PYRAMID_SINGLE_FLOW_ID: _spec(coarse=True, pyramid=True),
     INDEPENDENT_ENDPOINT_ID: _spec(coarse=True, independent=True),
+    INDEPENDENT_PYRAMID_ID: _spec(coarse=True, independent_pyramid=True),
 }
 
 
@@ -88,7 +99,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[INDEPENDENT_ENDPOINT_ID],
+                outputs[INDEPENDENT_PYRAMID_ID],
             )
             cases.append(
                 {
@@ -218,7 +229,16 @@ def _stress_score(sample: dict[str, torch.Tensor | str]) -> float:
 
 
 def _load_model(
-    layout, checkpoint_id, *, coarse, radius, moments, pyramid, independent, device
+    layout,
+    checkpoint_id,
+    *,
+    coarse,
+    radius,
+    moments,
+    pyramid,
+    independent,
+    independent_pyramid,
+    device,
 ):
     model = GenFramesBilateralFlow(
         BilateralFlowConfig(
@@ -229,6 +249,7 @@ def _load_model(
             correlation_moments=moments,
             pyramid_refinement=pyramid,
             independent_endpoint_flows=independent,
+            independent_pyramid_refinement=independent_pyramid,
         )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))
