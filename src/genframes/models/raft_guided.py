@@ -79,6 +79,23 @@ class GenFramesRaftGuided(FrameInterpolator):
             self.flow_estimator.eval()
         return self
 
+    def fusion_state_dict(self) -> dict[str, Tensor]:
+        """Return only GenFrames-owned trainable tensors for redistribution."""
+        return {
+            name: tensor
+            for name, tensor in self.state_dict().items()
+            if not name.startswith("flow_estimator.")
+        }
+
+    def load_fusion_state_dict(self, state_dict: dict[str, Tensor]) -> None:
+        """Load fusion tensors while retaining dependency-provided RAFT weights."""
+        incompatible = self.load_state_dict(state_dict, strict=False)
+        expected_missing = {
+            name for name in self.state_dict() if name.startswith("flow_estimator.")
+        }
+        if set(incompatible.missing_keys) != expected_missing or incompatible.unexpected_keys:
+            raise RuntimeError(f"incompatible fusion checkpoint: {incompatible}")
+
     def forward(self, frame0: Tensor, frame1: Tensor, time: Tensor | float) -> InterpolationOutput:
         self.validate_frames(frame0, frame1)
         target_time = prepare_time(time, frame0)

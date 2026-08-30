@@ -38,3 +38,13 @@ def test_raft_guided_fusion_has_finite_gradients() -> None:
     ]
     assert gradients
     assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+
+def test_fusion_state_round_trip_excludes_flow_estimator() -> None:
+    source = GenFramesRaftGuided(flow_estimator=_ZeroFlow())
+    fusion = source.fusion_state_dict()
+    assert fusion
+    assert not any(name.startswith("flow_estimator.") for name in fusion)
+
+    target = GenFramesRaftGuided(flow_estimator=_ZeroFlow())
+    target.load_fusion_state_dict(fusion)
