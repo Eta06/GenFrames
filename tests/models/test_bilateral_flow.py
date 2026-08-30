@@ -115,3 +115,22 @@ def test_pyramid_refinement_has_finite_gradients() -> None:
     ]
     assert gradients
     assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+
+def test_pyramid_refinement_supports_cuda_autocast() -> None:
+    if not torch.cuda.is_available():
+        return
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=8,
+            pyramid_refinement=True,
+            pyramid_channels=(4, 6, 8, 10),
+            pyramid_radii=(1, 1, 1, 2),
+        )
+    ).cuda()
+    frame0 = torch.rand((1, 3, 32, 40), device="cuda")
+    frame1 = torch.rand_like(frame0)
+    with torch.autocast(device_type="cuda", dtype=torch.float16):
+        output = model(frame0, frame1, 0.5)
+        output.frame.mean().backward()
+    assert torch.isfinite(output.frame).all()

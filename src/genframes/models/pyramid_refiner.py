@@ -132,16 +132,17 @@ class PyramidVelocityRefiner(nn.Module):
             else:
                 correction = resize_flow(correction, size)
             current_velocity = base_at_level + correction
-            level_time = target_time.expand(-1, -1, *size)
-            warped0 = backward_warp(feature0, -level_time * current_velocity)
-            warped1 = backward_warp(feature1, (1.0 - level_time) * current_velocity)
+            feature_velocity = current_velocity.to(feature0.dtype)
+            level_time = target_time.expand(-1, -1, *size).to(feature0.dtype)
+            warped0 = backward_warp(feature0, -level_time * feature_velocity)
+            warped1 = backward_warp(feature1, (1.0 - level_time) * feature_velocity)
             delta = self.updates[level](
                 warped0,
                 warped1,
-                current_velocity,
+                feature_velocity,
                 level_time,
                 self.temperature,
-            )
+            ).to(correction.dtype)
             correction = correction + delta
             diagnostics[f"pyramid_delta_{level}"] = delta
         assert correction is not None
