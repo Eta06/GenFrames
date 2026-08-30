@@ -81,6 +81,7 @@ def main() -> None:
         pyramid_refinement=arguments.pyramid_refinement,
         independent_endpoint_flows=arguments.independent_endpoint_flows,
         independent_velocity_limit=arguments.independent_velocity_limit,
+        independent_pyramid_refinement=arguments.independent_pyramid_refinement,
     )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
@@ -110,6 +111,12 @@ def main() -> None:
     if arguments.independent_endpoint_flows:
         allowed_keys.update(
             key for key in model.state_dict() if key.startswith("independent_flow_head.")
+        )
+    if arguments.independent_pyramid_refinement:
+        allowed_keys.update(
+            key
+            for key in model.state_dict()
+            if key.startswith("independent_pyramid_refiner.")
         )
     if not set(incompatible.missing_keys).issubset(allowed_keys) or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
@@ -241,6 +248,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--independent-endpoint-flows", action="store_true")
     parser.add_argument("--independent-velocity-limit", type=float, default=512.0)
     parser.add_argument("--privileged-raft-teacher", action="store_true")
+    parser.add_argument("--independent-pyramid-refinement", action="store_true")
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")

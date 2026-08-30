@@ -1,0 +1,43 @@
+experiment_id: prism-independent-pyramid-privileged-davis-mixed-001
+initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+
+model:
+  name: GenFramesBilateralFlow
+  base_channels: 24
+  coarse_velocity: true
+  independent_pyramid_refinement: true
+  independent_pyramid_channels: 32
+  pyramid_factors: [8, 4, 2]
+  pyramid_update_limits_feature_px: [32, 8, 4]
+  receptive_field_dilations: [1, 2, 4, 8]
+  fusion: unchanged_bilateral_warp_blend_residual
+
+teacher:
+  training_only: true
+  name: torchvision-raft-small
+  weights: Raft_Small_Weights.C_T_V2
+  task_oriented_mask: teacher_warp_better_than_raw_and_mae_below_0.15
+
+data:
+  real_weight: 0.75
+  synthetic_weight: 0.25
+  crop_size: 256
+  mixture_samples: 4096
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  amp: true
+  seed: 5101
+
+loss:
+  bilateral_flow_weight: 0.01
+  static_flow_weight: 0.1
+  warp_oracle_weight: 0.2
+
+acceptance:
+  aggregate_hard_case_alignment_positive: true
+  gains_must_span_multiple_hard_cases: true
+  visible_ghosting_reduction_required: true
+  blind_ab_only_after_clear_visual_gain: true

@@ -167,3 +167,44 @@ def test_independent_endpoint_head_can_break_shared_velocity_constraint() -> Non
         output.auxiliary["endpoint_velocity0"],
         output.auxiliary["endpoint_velocity1"],
     )
+
+
+def test_independent_pyramid_starts_from_same_function_on_odd_shape() -> None:
+    frame0 = torch.rand((1, 3, 35, 43))
+    frame1 = torch.rand_like(frame0)
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=8,
+            coarse_velocity=True,
+            independent_pyramid_refinement=True,
+            independent_pyramid_channels=8,
+        )
+    )
+    output = model(frame0, frame1, 0.25)
+    expected = LinearBlend()(frame0, frame1, 0.25).frame
+    assert torch.allclose(output.frame, expected, atol=1e-6)
+    assert output.auxiliary["independent_pyramid_correction0"].shape == (1, 2, 35, 43)
+    assert torch.count_nonzero(output.auxiliary["independent_pyramid_correction0"]) == 0
+
+
+def test_independent_pyramid_has_finite_gradients_under_cuda_autocast() -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = GenFramesBilateralFlow(
+        BilateralFlowConfig(
+            base_channels=8,
+            independent_pyramid_refinement=True,
+            independent_pyramid_channels=8,
+        )
+    ).to(device)
+    frame0 = torch.rand((1, 3, 32, 40), device=device)
+    frame1 = torch.rand_like(frame0)
+    with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
+        output = model(frame0, frame1, 0.5)
+        output.frame.mean().backward()
+    gradients = [
+        parameter.grad
+        for parameter in model.independent_pyramid_refiner.parameters()
+        if parameter.grad is not None
+    ]
+    assert gradients
+    assert all(torch.isfinite(gradient).all() for gradient in gradients)

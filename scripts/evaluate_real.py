@@ -51,6 +51,7 @@ def main() -> None:
             pyramid_refinement=arguments.pyramid_refinement,
             independent_endpoint_flows=arguments.independent_endpoint_flows,
             independent_velocity_limit=arguments.independent_velocity_limit,
+            independent_pyramid_refinement=arguments.independent_pyramid_refinement,
         )
     )
     model.load_state_dict(load_file(checkpoint))
@@ -137,6 +138,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--pyramid-refinement", action="store_true")
     parser.add_argument("--independent-endpoint-flows", action="store_true")
     parser.add_argument("--independent-velocity-limit", type=float, default=512.0)
+    parser.add_argument("--independent-pyramid-refinement", action="store_true")
     return parser.parse_args()
 
 
