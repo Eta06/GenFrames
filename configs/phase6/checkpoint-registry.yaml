@@ -1,0 +1,22 @@
+checkpoints:
+  - id: parallax-raft-multifield-selector-gopro-001
+    status: research-reject-selector-underfit-representation-retained
+    architecture: FrozenRAFTMultiField+ConvexSpatialSelector
+    storage_relative_path: checkpoints/parallax-raft-multifield-selector-gopro-001/selector.safetensors
+    sha256: 1a4dc0695f67a306153aef3c5cec29c51f1505d7ef92bf58b12c5b63320e38e3
+    trainable_parameters: 87562
+    research_oracle_total_parameters: 1077724
+    external_weights_bundled: false
+    validation:
+      davis_64_psnr_db: 25.74448049068451
+      davis_64_delta_vs_single_db: 0.30065159499645233
+      gopro_24_psnr_db: 39.38588603337606
+      gopro_24_delta_vs_single_db: -0.029382705688476562
+      analytic_64_occlusion_psnr_db: 21.40048596262932
+      analytic_64_occlusion_delta_vs_single_db: 0.8087879121303558
+      hard_6_psnr_db: 18.420780817667644
+      hard_6_delta_vs_single_db: 0.20718558629353842
+      hard_cases_improved: 5
+      hard_edge_ghosting_proxy_delta: -0.004037568035225077
+      visual_gate: failed_not_clear
+    overwrite: forbidden

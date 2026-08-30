@@ -1,0 +1,33 @@
+experiment_id: parallax-raft-multifield-selector-gopro-001
+git_keyword: Parallax
+
+model:
+  candidate_fields: 10
+  candidate_generation: frozen_fixed_point_iterates
+  selector_channels: 32
+  selector_output: convex_spatial_softmax
+  rgb_residual: false
+  flow_update: false
+  trainable_selector_parameters: 87562
+  research_oracle_total_parameters: 1077724
+
+data:
+  real_weight: 0.85
+  synthetic_weight: 0.15
+  gopro_within_real_weight: 0.8
+  davis_within_real_weight: 0.2
+  crop_size: 256
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  seed: 7201
+  candidate_selection_weight: 0.05
+  conflicting_region_static_weight: 0.1
+
+decision:
+  representation: pass
+  selector: reject_not_promoted
+  blind_ab: blocked_visual_gain_not_clear
+  overwrite: forbidden
