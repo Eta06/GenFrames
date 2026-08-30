@@ -18,6 +18,8 @@ class LossConfig:
     static_flow_weight: float = 0.1
     warp_oracle_weight: float = 0.0
     visibility_weight: float = 0.0
+    candidate_selection_weight: float = 0.0
+    candidate_static_weight: float = 0.1
     epsilon: float = 1e-3
 
 
@@ -48,6 +50,7 @@ class InterpolationLoss(nn.Module):
         flow = prediction.new_zeros(())
         warp_oracle = prediction.new_zeros(())
         visibility = prediction.new_zeros(())
+        candidate_selection = prediction.new_zeros(())
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
@@ -73,11 +76,19 @@ class InterpolationLoss(nn.Module):
             )
         if batch is not None and "weight1" in auxiliary and "visibility0" in batch:
             visibility = visibility_blend_loss(auxiliary["weight1"], batch, prediction)
+        if "candidate_logits" in auxiliary and "candidate_stack" in auxiliary:
+            candidate_selection = candidate_selection_loss(
+                auxiliary["candidate_logits"],
+                auxiliary["candidate_stack"],
+                target,
+                static_weight=self.config.candidate_static_weight,
+            )
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
             + self.config.bilateral_flow_weight * flow
             + self.config.warp_oracle_weight * warp_oracle
             + self.config.visibility_weight * visibility
+            + self.config.candidate_selection_weight * candidate_selection
         )
         return {
             "total": total,
@@ -86,6 +97,7 @@ class InterpolationLoss(nn.Module):
             "flow": flow,
             "warp_oracle": warp_oracle,
             "visibility": visibility,
+            "candidate_selection": candidate_selection,
         }
 
 
@@ -157,6 +169,31 @@ def visibility_blend_loss(
         prediction_weight1, target_weight1, reduction="none"
     )
     return (error * usable).sum() / usable.sum().clamp_min(1)
+
+
+def candidate_selection_loss(
+    logits: Tensor,
+    candidates: Tensor,
+    target: Tensor,
+    *,
+    static_weight: float = 0.1,
+) -> Tensor:
+    """Teach a selector which fixed candidate best explains each target pixel."""
+    if candidates.ndim != 5 or candidates.shape[2] != target.shape[1]:
+        raise ValueError("candidates must have shape [B, K, C, H, W]")
+    if logits.shape != (
+        candidates.shape[0],
+        candidates.shape[1],
+        candidates.shape[3],
+        candidates.shape[4],
+    ):
+        raise ValueError("logits must have shape [B, K, H, W] matching candidates")
+    errors = (candidates.detach() - target[:, None]).abs().mean(dim=2)
+    labels = errors.argmin(dim=1)
+    per_pixel = torch.nn.functional.cross_entropy(logits, labels, reduction="none")
+    conflict = (candidates[:, 0] - candidates[:, 1]).abs().mean(dim=1) > 0.05
+    weights = torch.where(conflict, torch.ones_like(per_pixel), static_weight)
+    return (per_pixel * weights).sum() / weights.sum().clamp_min(1e-6)
 
 
 def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tensor:

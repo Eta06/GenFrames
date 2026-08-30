@@ -2,6 +2,7 @@ import torch
 
 from genframes.training.losses import (
     balanced_flow_loss,
+    candidate_selection_loss,
     oracle_warp_loss,
     visibility_blend_loss,
 )
@@ -64,3 +65,15 @@ def test_visibility_blend_loss_prefers_only_visible_endpoint() -> None:
     }
     assert visibility_blend_loss(torch.ones((1, 1, 2, 2)), batch, reference) == 0
     assert visibility_blend_loss(torch.zeros((1, 1, 2, 2)), batch, reference) > 0
+
+
+def test_candidate_selection_loss_prefers_best_fixed_candidate() -> None:
+    target = torch.ones((1, 3, 2, 2))
+    candidates = torch.stack((torch.zeros_like(target), target), dim=1)
+    correct = torch.empty((1, 2, 2, 2))
+    correct[:, 0] = -5.0
+    correct[:, 1] = 5.0
+    wrong = -correct
+    assert candidate_selection_loss(correct, candidates, target) < candidate_selection_loss(
+        wrong, candidates, target
+    )
