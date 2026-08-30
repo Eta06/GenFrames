@@ -117,6 +117,8 @@ def _evaluate_sample(single, selector, sample, device):
     weights = output.auxiliary["candidate_weights"]
     predicted_index = weights.argmax(1)
     confidence_index = output.auxiliary["confidence_prior"].argmax(1)
+    predicted_error = errors.gather(1, predicted_index[:, None]).squeeze(1)
+    confidence_error = errors.gather(1, confidence_index[:, None]).squeeze(1)
     candidate_spread = candidates.std(1).mean(1, keepdim=True)
     high_disagreement = candidate_spread > 0.05
     masks = {"global": torch.ones_like(high_disagreement), "high_disagreement": high_disagreement}
@@ -124,6 +126,7 @@ def _evaluate_sample(single, selector, sample, device):
         visibility0 = _tensor(sample, "visibility0").unsqueeze(0).to(device).bool()
         visibility1 = _tensor(sample, "visibility1").unsqueeze(0).to(device).bool()
         masks["occlusion"] = ~(visibility0 & visibility1)
+        masks["disocclusion"] = visibility0 ^ visibility1
     record = {
         "sequence_id": str(sample["sequence_id"]),
         "single_psnr_db": _psnr(single_frame, target),
@@ -134,21 +137,33 @@ def _evaluate_sample(single, selector, sample, device):
         "oracle_mae": float(oracle_error.mean()),
         "selector_accuracy": _masked_accuracy(predicted_index, oracle_index, masks["global"]),
         "confidence_accuracy": _masked_accuracy(confidence_index, oracle_index, masks["global"]),
+        "selector_oracle_tolerance_accuracy": _masked_tolerance_accuracy(
+            predicted_error, oracle_error, masks["global"]
+        ),
+        "confidence_oracle_tolerance_accuracy": _masked_tolerance_accuracy(
+            confidence_error, oracle_error, masks["global"]
+        ),
         "selector_entropy": float(_entropy(weights).mean()),
         "high_disagreement_fraction": float(high_disagreement.float().mean()),
         "extra_field_weight_mean": float(weights[:, 2:].sum(1).mean()),
     }
     _add_region_metrics(record, "high_disagreement", masks["high_disagreement"], single_frame,
-                        selected, oracle, target, predicted_index, confidence_index, oracle_index)
+                        selected, oracle, target, predicted_index, confidence_index, oracle_index,
+                        predicted_error, confidence_error, oracle_error)
     if "occlusion" in masks:
-        record["occlusion_fraction"] = float(masks["occlusion"].float().mean())
-        _add_region_metrics(record, "occlusion", masks["occlusion"], single_frame, selected,
-                            oracle, target, predicted_index, confidence_index, oracle_index)
+        for region_name in ("occlusion", "disocclusion"):
+            region_mask = masks[region_name]
+            record[f"{region_name}_fraction"] = float(region_mask.float().mean())
+            _add_region_metrics(
+                record, region_name, region_mask, single_frame, selected, oracle, target,
+                predicted_index, confidence_index, oracle_index, predicted_error,
+                confidence_error, oracle_error,
+            )
     record["mae_oracle_gap_closed"] = _gap_closed(
         record["single_mae"], record["selected_mae"], record["oracle_mae"]
     )
-    record["psnr_oracle_gap_closed"] = _gap_closed(
-        record["oracle_psnr_db"], record["selected_psnr_db"], record["single_psnr_db"]
+    record["psnr_oracle_gap_closed"] = _gain_fraction(
+        record["single_psnr_db"], record["selected_psnr_db"], record["oracle_psnr_db"]
     )
     evidence = output.auxiliary["candidate_evidence"]
     chosen = predicted_index[:, None, None].expand(-1, 1, evidence.shape[2], -1, -1)
@@ -167,12 +182,19 @@ def _evaluate_sample(single, selector, sample, device):
 
 
 def _add_region_metrics(record, name, mask, single, selected, oracle, target,
-                        predicted_index, confidence_index, oracle_index):
+                        predicted_index, confidence_index, oracle_index,
+                        predicted_error, confidence_error, oracle_error):
     record[f"{name}_single_mae"] = _masked_mae(single, target, mask)
     record[f"{name}_selected_mae"] = _masked_mae(selected, target, mask)
     record[f"{name}_oracle_mae"] = _masked_mae(oracle, target, mask)
     record[f"{name}_selector_accuracy"] = _masked_accuracy(predicted_index, oracle_index, mask)
     record[f"{name}_confidence_accuracy"] = _masked_accuracy(confidence_index, oracle_index, mask)
+    record[f"{name}_selector_oracle_tolerance_accuracy"] = _masked_tolerance_accuracy(
+        predicted_error, oracle_error, mask
+    )
+    record[f"{name}_confidence_oracle_tolerance_accuracy"] = _masked_tolerance_accuracy(
+        confidence_error, oracle_error, mask
+    )
     record[f"{name}_single_ghosting"] = _masked_edge_error(single, target, mask)
     record[f"{name}_selected_ghosting"] = _masked_edge_error(selected, target, mask)
 
@@ -180,6 +202,11 @@ def _add_region_metrics(record, name, mask, single, selected, oracle, target,
 def _gap_closed(start, selected, oracle):
     denominator = start - oracle
     return (start - selected) / denominator if abs(denominator) > 1e-9 else 0.0
+
+
+def _gain_fraction(start, selected, oracle):
+    denominator = oracle - start
+    return (selected - start) / denominator if abs(denominator) > 1e-9 else 0.0
 
 
 def _psnr(prediction, target):
@@ -199,6 +226,12 @@ def _masked_mae(prediction, target, mask):
 def _masked_accuracy(predicted, target, mask):
     flat_mask = mask[:, 0]
     return float((predicted == target)[flat_mask].float().mean()) if flat_mask.any() else 0.0
+
+
+def _masked_tolerance_accuracy(selected_error, oracle_error, mask):
+    flat_mask = mask[:, 0]
+    acceptable = selected_error <= oracle_error + (1.0 / 255.0)
+    return float(acceptable[flat_mask].float().mean()) if flat_mask.any() else 0.0
 
 
 def _masked_edge_error(prediction, target, mask):
@@ -227,8 +260,8 @@ def _aggregate(records):
     aggregate["aggregate_mae_oracle_gap_closed"] = _gap_closed(
         aggregate["single_mae"], aggregate["selected_mae"], aggregate["oracle_mae"]
     )
-    aggregate["aggregate_psnr_oracle_gap_closed"] = _gap_closed(
-        aggregate["oracle_psnr_db"], aggregate["selected_psnr_db"], aggregate["single_psnr_db"]
+    aggregate["aggregate_psnr_oracle_gap_closed"] = _gain_fraction(
+        aggregate["single_psnr_db"], aggregate["selected_psnr_db"], aggregate["oracle_psnr_db"]
     )
     return aggregate
 

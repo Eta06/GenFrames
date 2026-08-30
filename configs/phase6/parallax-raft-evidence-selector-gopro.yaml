@@ -1,0 +1,36 @@
+experiment_id: parallax-raft-evidence-selector-gopro-001
+git_keyword: Parallax
+
+model:
+  candidate_fields: 10
+  candidate_generation: frozen_fixed_point_iterates
+  selector_channels: 32
+  evidence: [photometric_cycle, inverse_residual, flow_cycle, source_valid,
+             cross_valid, consensus_deviation]
+  selector_resolution: half
+  selector_output: confidence_prior_plus_coherent_convex_softmax
+  rgb_residual: false
+  flow_update: false
+  trainable_selector_parameters: 104842
+  research_oracle_total_parameters: 1095004
+
+data:
+  real_weight: 0.85
+  synthetic_weight: 0.15
+  gopro_within_real_weight: 0.8
+  davis_within_real_weight: 0.2
+  crop_size: 256
+
+training:
+  steps: 1500
+  batch_size: 4
+  learning_rate: 0.0001
+  seed: 7201
+  candidate_soft_target_temperature: 0.02
+  selector_spatial_weight: 0.02
+
+decision:
+  representation: retained
+  selector: reject_not_promoted
+  blind_ab: blocked_visual_ghosting_remains
+  overwrite: forbidden

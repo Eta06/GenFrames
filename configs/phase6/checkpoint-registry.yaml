@@ -1,4 +1,25 @@
 checkpoints:
+  - id: parallax-raft-evidence-selector-gopro-001
+    status: research-reject-insufficient-oracle-gap-closure
+    architecture: FrozenRAFTMultiField+CycleEvidenceCoherentSelector
+    storage_relative_path: checkpoints/parallax-raft-evidence-selector-gopro-001/selector.safetensors
+    sha256: 3ec3bc1232840e1892f0b48557a167ee06da91437587bd193d4b1e6590c238fc
+    trainable_parameters: 104842
+    research_oracle_total_parameters: 1095004
+    external_weights_bundled: false
+    validation:
+      davis_64_psnr_db: 25.796959415078163
+      davis_64_delta_vs_single_db: 0.3531305193901062
+      gopro_24_psnr_db: 39.51370175679525
+      gopro_24_delta_vs_single_db: 0.09843301773071289
+      analytic_64_occlusion_psnr_db: 21.611098170280457
+      analytic_64_occlusion_delta_vs_single_db: 1.0194001197814941
+      hard_6_psnr_db: 18.481956005096436
+      hard_6_delta_vs_single_db: 0.2683607737223326
+      hard_6_mae_oracle_gap_closed: 0.08855740119152905
+      hard_6_high_disagreement_ghosting_delta: -0.0009267982095479965
+      visual_gate: failed_ghosting_not_clearly_reduced
+    overwrite: forbidden
   - id: parallax-raft-multifield-selector-gopro-001
     status: research-reject-selector-underfit-representation-retained
     architecture: FrozenRAFTMultiField+ConvexSpatialSelector
