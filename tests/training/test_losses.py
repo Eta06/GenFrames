@@ -4,6 +4,7 @@ from genframes.training.losses import (
     balanced_flow_loss,
     candidate_selection_loss,
     oracle_warp_loss,
+    spatial_selector_loss,
     visibility_blend_loss,
 )
 
@@ -77,3 +78,10 @@ def test_candidate_selection_loss_prefers_best_fixed_candidate() -> None:
     assert candidate_selection_loss(correct, candidates, target) < candidate_selection_loss(
         wrong, candidates, target
     )
+
+
+def test_spatial_selector_loss_is_zero_for_constant_weights() -> None:
+    weights = torch.full((1, 2, 4, 5), 0.5)
+    reference = torch.rand((1, 3, 4, 5))
+    batch = {"frame0": reference, "frame1": reference}
+    assert spatial_selector_loss(weights, batch, reference) == 0

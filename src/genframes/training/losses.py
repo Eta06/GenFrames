@@ -20,6 +20,9 @@ class LossConfig:
     visibility_weight: float = 0.0
     candidate_selection_weight: float = 0.0
     candidate_static_weight: float = 0.1
+    candidate_soft_target_temperature: float = 0.0
+    selector_spatial_weight: float = 0.0
+    selector_spatial_edge_scale: float = 10.0
     epsilon: float = 1e-3
 
 
@@ -51,6 +54,7 @@ class InterpolationLoss(nn.Module):
         warp_oracle = prediction.new_zeros(())
         visibility = prediction.new_zeros(())
         candidate_selection = prediction.new_zeros(())
+        selector_spatial = prediction.new_zeros(())
         if batch is not None and "flow_t0" in auxiliary and "flow_t1" in auxiliary:
             target_flow0 = _batch_tensor(batch, "flow_t0", prediction)
             target_flow1 = _batch_tensor(batch, "flow_t1", prediction)
@@ -82,6 +86,14 @@ class InterpolationLoss(nn.Module):
                 auxiliary["candidate_stack"],
                 target,
                 static_weight=self.config.candidate_static_weight,
+                soft_target_temperature=self.config.candidate_soft_target_temperature,
+            )
+        if batch is not None and "candidate_weights" in auxiliary:
+            selector_spatial = spatial_selector_loss(
+                auxiliary["candidate_weights"],
+                batch,
+                prediction,
+                edge_scale=self.config.selector_spatial_edge_scale,
             )
         total = (
             self.config.charbonnier_weight * charbonnier + self.config.edge_weight * edge
@@ -89,6 +101,7 @@ class InterpolationLoss(nn.Module):
             + self.config.warp_oracle_weight * warp_oracle
             + self.config.visibility_weight * visibility
             + self.config.candidate_selection_weight * candidate_selection
+            + self.config.selector_spatial_weight * selector_spatial
         )
         return {
             "total": total,
@@ -98,6 +111,7 @@ class InterpolationLoss(nn.Module):
             "warp_oracle": warp_oracle,
             "visibility": visibility,
             "candidate_selection": candidate_selection,
+            "selector_spatial": selector_spatial,
         }
 
 
@@ -177,6 +191,7 @@ def candidate_selection_loss(
     target: Tensor,
     *,
     static_weight: float = 0.1,
+    soft_target_temperature: float = 0.0,
 ) -> Tensor:
     """Teach a selector which fixed candidate best explains each target pixel."""
     if candidates.ndim != 5 or candidates.shape[2] != target.shape[1]:
@@ -189,11 +204,35 @@ def candidate_selection_loss(
     ):
         raise ValueError("logits must have shape [B, K, H, W] matching candidates")
     errors = (candidates.detach() - target[:, None]).abs().mean(dim=2)
-    labels = errors.argmin(dim=1)
-    per_pixel = torch.nn.functional.cross_entropy(logits, labels, reduction="none")
+    if soft_target_temperature > 0:
+        target_probabilities = (-errors / soft_target_temperature).softmax(dim=1)
+        per_pixel = -(target_probabilities * logits.log_softmax(dim=1)).sum(dim=1)
+    else:
+        labels = errors.argmin(dim=1)
+        per_pixel = torch.nn.functional.cross_entropy(logits, labels, reduction="none")
     conflict = (candidates[:, 0] - candidates[:, 1]).abs().mean(dim=1) > 0.05
     weights = torch.where(conflict, torch.ones_like(per_pixel), static_weight)
     return (per_pixel * weights).sum() / weights.sum().clamp_min(1e-6)
+
+
+def spatial_selector_loss(
+    weights: Tensor,
+    batch: dict[str, object],
+    reference: Tensor,
+    *,
+    edge_scale: float = 10.0,
+) -> Tensor:
+    """Encourage coherent field weights while permitting endpoint image boundaries."""
+    frame0 = _batch_tensor(batch, "frame0", reference)
+    frame1 = _batch_tensor(batch, "frame1", reference)
+    guidance = 0.5 * (frame0 + frame1)
+    weight_dx = (weights[:, :, :, 1:] - weights[:, :, :, :-1]).abs().mean(1)
+    weight_dy = (weights[:, :, 1:, :] - weights[:, :, :-1, :]).abs().mean(1)
+    guide_dx = (guidance[:, :, :, 1:] - guidance[:, :, :, :-1]).abs().mean(1)
+    guide_dy = (guidance[:, :, 1:, :] - guidance[:, :, :-1, :]).abs().mean(1)
+    horizontal = (weight_dx * torch.exp(-edge_scale * guide_dx)).mean()
+    vertical = (weight_dy * torch.exp(-edge_scale * guide_dy)).mean()
+    return horizontal + vertical
 
 
 def _batch_tensor(batch: dict[str, object], key: str, reference: Tensor) -> Tensor:

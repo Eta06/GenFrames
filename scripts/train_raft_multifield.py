@@ -22,9 +22,11 @@ from genframes.data import (
 )
 from genframes.eval import evaluate_model
 from genframes.models import (
+    GenFramesRaftEvidenceSelector,
     GenFramesRaftGuided,
     GenFramesRaftMultiField,
     LinearBlend,
+    RaftEvidenceSelectorConfig,
     RaftMultiFieldConfig,
 )
 from genframes.storage import StorageLayout
@@ -85,8 +87,14 @@ def main() -> None:
         pin_memory=True,
         persistent_workers=arguments.workers > 0,
     )
-    model_config = RaftMultiFieldConfig(selector_channels=arguments.selector_channels)
-    model = GenFramesRaftMultiField(model_config)
+    if arguments.evidence_selector:
+        model_config = RaftEvidenceSelectorConfig(
+            selector_channels=arguments.selector_channels
+        )
+        model = GenFramesRaftEvidenceSelector(model_config)
+    else:
+        model_config = RaftMultiFieldConfig(selector_channels=arguments.selector_channels)
+        model = GenFramesRaftMultiField(model_config)
     train_config = TrainConfig(
         steps=arguments.steps,
         learning_rate=arguments.learning_rate,
@@ -101,6 +109,9 @@ def main() -> None:
         edge_weight=arguments.edge_weight,
         candidate_selection_weight=arguments.selection_weight,
         candidate_static_weight=arguments.candidate_static_weight,
+        candidate_soft_target_temperature=arguments.soft_target_temperature,
+        selector_spatial_weight=arguments.spatial_weight,
+        selector_spatial_edge_scale=arguments.spatial_edge_scale,
     )
     device = torch.device(arguments.device)
     if device.type == "cuda":
@@ -236,11 +247,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--gopro-validation-samples", type=int, default=24)
     parser.add_argument("--crop-size", type=int, default=256)
     parser.add_argument("--selector-channels", type=int, default=32)
+    parser.add_argument("--evidence-selector", action="store_true")
     parser.add_argument("--real-weight", type=float, default=0.85)
     parser.add_argument("--gopro-weight", type=float, default=0.8)
     parser.add_argument("--edge-weight", type=float, default=0.1)
     parser.add_argument("--selection-weight", type=float, default=0.05)
     parser.add_argument("--candidate-static-weight", type=float, default=0.1)
+    parser.add_argument("--soft-target-temperature", type=float, default=0.02)
+    parser.add_argument("--spatial-weight", type=float, default=0.02)
+    parser.add_argument("--spatial-edge-scale", type=float, default=10.0)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=7201)

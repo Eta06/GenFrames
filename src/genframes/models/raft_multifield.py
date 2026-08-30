@@ -25,6 +25,42 @@ class RaftMultiFieldConfig:
     freeze_raft: bool = True
 
 
+def build_multifield_candidates(
+    frame0: Tensor,
+    frame1: Tensor,
+    target_time: Tensor,
+    flow01: Tensor,
+    flow10: Tensor,
+    *,
+    refinement_steps: tuple[int, ...] = (0, 1, 2, 4),
+    damping: float = 0.75,
+) -> tuple[Tensor, tuple[Tensor, ...], tuple[int, ...]]:
+    """Build the immutable Parallax ten-field representation."""
+    quadratic0 = -(1.0 - target_time) * target_time * flow01 + target_time.square() * flow10
+    quadratic1 = (1.0 - target_time).square() * flow01 - (
+        target_time * (1.0 - target_time) * flow10
+    )
+    fields0 = inverse_flow_hypotheses(
+        flow01,
+        target_time.flatten(),
+        refinement_steps=refinement_steps,
+        damping=damping,
+    )
+    fields1 = inverse_flow_hypotheses(
+        flow10,
+        1.0 - target_time.flatten(),
+        refinement_steps=refinement_steps,
+        damping=damping,
+    )
+    fields = (quadratic0, quadratic1) + fields0 + fields1
+    source_ids = (0, 1) + (0,) * len(fields0) + (1,) * len(fields1)
+    candidates = tuple(
+        backward_warp((frame0 if source_id == 0 else frame1), field.to(frame0.dtype))
+        for field, source_id in zip(fields, source_ids, strict=True)
+    )
+    return torch.stack(candidates, dim=1), fields, source_ids
+
+
 class GenFramesRaftMultiField(FrameInterpolator):
     """Keep motion hypotheses fixed and learn only their convex spatial selection."""
 
@@ -90,29 +126,15 @@ class GenFramesRaftMultiField(FrameInterpolator):
         self.validate_frames(frame0, frame1)
         target_time = prepare_time(time, frame0)
         flow01, flow10 = self._endpoint_flows(frame0, frame1)
-        quadratic0 = -(1.0 - target_time) * target_time * flow01 + target_time.square() * flow10
-        quadratic1 = (1.0 - target_time).square() * flow01 - (
-            target_time * (1.0 - target_time) * flow10
-        )
-        fields0 = inverse_flow_hypotheses(
+        candidate_stack, fields, _ = build_multifield_candidates(
+            frame0,
+            frame1,
+            target_time,
             flow01,
-            target_time.flatten(),
-            refinement_steps=self.config.refinement_steps,
-            damping=self.config.damping,
-        )
-        fields1 = inverse_flow_hypotheses(
             flow10,
-            1.0 - target_time.flatten(),
             refinement_steps=self.config.refinement_steps,
             damping=self.config.damping,
         )
-        candidates = (
-            backward_warp(frame0, quadratic0.to(frame0.dtype)),
-            backward_warp(frame1, quadratic1.to(frame1.dtype)),
-        ) + tuple(backward_warp(frame0, field.to(frame0.dtype)) for field in fields0) + tuple(
-            backward_warp(frame1, field.to(frame1.dtype)) for field in fields1
-        )
-        candidate_stack = torch.stack(candidates, dim=1)
         consensus_mean = candidate_stack.mean(dim=1)
         consensus_std = candidate_stack.std(dim=1)
         time_map = target_time.expand(-1, -1, frame0.shape[-2], frame0.shape[-1])
@@ -129,13 +151,13 @@ class GenFramesRaftMultiField(FrameInterpolator):
         return InterpolationOutput(
             frame=frame,
             auxiliary={
-                "velocity": quadratic1 - quadratic0,
+                "velocity": fields[1] - fields[0],
                 "flow01": flow01,
                 "flow10": flow10,
-                "flow_t0": quadratic0,
-                "flow_t1": quadratic1,
-                "warped0": candidates[0],
-                "warped1": candidates[1],
+                "flow_t0": fields[0],
+                "flow_t1": fields[1],
+                "warped0": candidate_stack[:, 0],
+                "warped1": candidate_stack[:, 1],
                 "candidate_stack": candidate_stack,
                 "candidate_logits": logits,
                 "candidate_weights": weights,
