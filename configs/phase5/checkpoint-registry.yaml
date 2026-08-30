@@ -1,4 +1,21 @@
 checkpoints:
+  - id: prism-structural-pyramid-single-flow-davis-mixed-001
+    status: research-reject-hard-case-alignment-regression
+    architecture: GenFramesBilateralFlow+CoarseVelocity+PyramidSingleFlow
+    parameters: 777716
+    storage_relative_path: checkpoints/prism-structural-pyramid-single-flow-davis-mixed-001/model.safetensors
+    sha256: 202eddefdf60bc3e4a8664004fb7de0a8b3f37d0c2da28accd4247990b7513f5
+    initial_checkpoint: prism-coarse-oracle-warp-davis-mixed-001
+    validation:
+      davis_300_rgb_mae: 0.06207162536991139
+      davis_300_rgb_psnr_db: 21.230546871821087
+      analytic_256_rgb_psnr_db: 37.57805449515581
+      analytic_256_moving_flow_epe: 2.22598311281763
+      hard_case_flow_alignment_gain_db: -0.8940399487813314
+      hard_cases_improved_over_initial: 0
+    provenance_risk: yellow
+    overwrite: forbidden
+
   - id: orbit-bilateral-flow-analytic-003
     status: immutable-baseline
     architecture: GenFramesBilateralFlow
