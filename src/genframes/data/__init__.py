@@ -2,6 +2,7 @@
 
 from .analytic import AnalyticMotionDataset
 from .davis import DAVIS_2017_URL, build_davis_2017_manifest
+from .gopro import GOPRO_LARGE_ALL_URL, build_gopro_large_all_manifest
 from .manifest import (
     DatasetManifest,
     DatasetRole,
@@ -26,5 +27,7 @@ __all__ = [
     "Split",
     "assign_split",
     "DAVIS_2017_URL",
+    "GOPRO_LARGE_ALL_URL",
     "build_davis_2017_manifest",
+    "build_gopro_large_all_manifest",
 ]
