@@ -48,16 +48,22 @@ def main() -> None:
             frame0 = _tensor(sample, "frame0").unsqueeze(0).to(device)
             frame1 = _tensor(sample, "frame1").unsqueeze(0).to(device)
             target = _tensor(sample, "target").unsqueeze(0).to(device)
-            target_input, frame0_input, original_size = _prepare_pair(
-                target, frame0, transforms
+            flow_t0, flow_t1 = _estimate_target_flows(
+                model,
+                transforms,
+                arguments.mode,
+                frame0,
+                frame1,
+                target,
+                _tensor(sample, "time").to(device),
             )
-            _, frame1_input, _ = _prepare_pair(target, frame1, transforms)
-            crop = (..., slice(0, original_size[0]), slice(0, original_size[1]))
-            flow_t0 = model(target_input, frame0_input)[-1][crop]
-            flow_t1 = model(target_input, frame1_input)[-1][crop]
             warped0 = backward_warp(frame0, flow_t0)
             warped1 = backward_warp(frame1, flow_t1)
             oracle = _pixel_oracle(warped0, warped1, target)
+            target_time = _tensor(sample, "time").to(device).reshape(-1, 1, 1, 1)
+            blended = (
+                (1.0 - target_time) * warped0 + target_time * warped1
+            ).clamp(0, 1)
             unwarped_oracle = _pixel_oracle(frame0, frame1, target)
             unwarped_psnr = _psnr(unwarped_oracle, target)
             warped_psnr = _psnr(oracle, target)
@@ -71,6 +77,7 @@ def main() -> None:
                 warped0[0],
                 warped1[0],
                 oracle[0],
+                blended[0],
                 flow_t0[0],
             )
             cases.append(
@@ -82,29 +89,40 @@ def main() -> None:
                     "teacher_warp_oracle_psnr_db": warped_psnr,
                     "flow_alignment_gain_db": warped_psnr - unwarped_psnr,
                     "teacher_warp_oracle_mae": float((oracle - target).abs().mean()),
+                    "time_blend_psnr_db": _psnr(blended, target),
+                    "time_blend_mae": float((blended - target).abs().mean()),
                     "flow_t0_p95_px": _flow_p95(flow_t0),
                     "flow_t1_p95_px": _flow_p95(flow_t1),
                     "panel": str(panel),
                 }
             )
     gains = [case["flow_alignment_gain_db"] for case in cases]
+    blend_psnr = [case["time_blend_psnr_db"] for case in cases]
     result = {
         "experiment_id": arguments.experiment_id,
         "purpose": (
-            "training-only privileged teacher ceiling; teacher is not an inference dependency"
+            "training-only privileged teacher ceiling"
+            if arguments.mode == "privileged"
+            else "inference-available endpoint global-flow interpolation ceiling"
         ),
         "teacher": {
             "name": f"torchvision RAFT {arguments.variant}",
             "weights": str(weights),
             "weights_url": weights.url,
             "license": "BSD-3-Clause implementation; pretrained weight terms follow TorchVision",
-            "input_pair": "ground-truth target frame -> each endpoint frame",
+            "mode": arguments.mode,
+            "input_pair": (
+                "ground-truth target frame -> each endpoint frame"
+                if arguments.mode == "privileged"
+                else "endpoint frame 0 <-> endpoint frame 1; no target access"
+            ),
         },
         "cases": cases,
         "aggregate": {
             "flow_alignment_gain_db": sum(gains) / len(gains),
             "positive_cases": sum(gain > 0 for gain in gains),
             "minimum_gain_db": min(gains),
+            "time_blend_psnr_db": sum(blend_psnr) / len(blend_psnr),
             "wall_seconds": time.perf_counter() - started,
         },
     }
@@ -120,6 +138,36 @@ def _load_teacher(variant: str, device: torch.device):
         weights = Raft_Large_Weights.DEFAULT
         model = raft_large(weights=weights, progress=True)
     return model.to(device).eval(), weights
+
+
+def _estimate_target_flows(
+    model,
+    transforms,
+    mode: str,
+    frame0: torch.Tensor,
+    frame1: torch.Tensor,
+    target: torch.Tensor,
+    target_time: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if mode == "privileged":
+        target_input, frame0_input, original_size = _prepare_pair(
+            target, frame0, transforms
+        )
+        _, frame1_input, _ = _prepare_pair(target, frame1, transforms)
+        crop = (..., slice(0, original_size[0]), slice(0, original_size[1]))
+        return model(target_input, frame0_input)[-1][crop], model(
+            target_input, frame1_input
+        )[-1][crop]
+    frame0_input, frame1_input, original_size = _prepare_pair(
+        frame0, frame1, transforms
+    )
+    crop = (..., slice(0, original_size[0]), slice(0, original_size[1]))
+    flow01 = model(frame0_input, frame1_input)[-1][crop]
+    flow10 = model(frame1_input, frame0_input)[-1][crop]
+    time = target_time.reshape(-1, 1, 1, 1)
+    flow_t0 = -(1.0 - time) * time * flow01 + time.square() * flow10
+    flow_t1 = (1.0 - time).square() * flow01 - time * (1.0 - time) * flow10
+    return flow_t0, flow_t1
 
 
 def _prepare_pair(first, second, transforms):
@@ -170,20 +218,26 @@ def _stress_score(sample) -> float:
     )
 
 
-def _save_panel(path, frame0, target, frame1, warped0, warped1, oracle, flow0) -> None:
+def _save_panel(
+    path, frame0, target, frame1, warped0, warped1, oracle, blended, flow0
+) -> None:
     error = (oracle - target).abs().mean(0)
     panels = (
         ("Input 0", _rgb(frame0)),
         ("Ground truth", _rgb(target)),
         ("Input 1", _rgb(frame1)),
         ("Teacher oracle", _rgb(oracle)),
+        ("Time blend", _rgb(blended)),
         ("Teacher warp 0", _rgb(warped0)),
         ("Teacher warp 1", _rgb(warped1)),
         ("Oracle error", _heat(error, maximum=0.3)),
         ("Teacher flow t->0", _flow(flow0)),
     )
-    tile_width, tile_height, header, columns = 300, 190, 26, 4
-    canvas = Image.new("RGB", (columns * tile_width, 2 * (tile_height + header)), "black")
+    tile_width, tile_height, header, columns = 300, 190, 26, 5
+    rows = math.ceil(len(panels) / columns)
+    canvas = Image.new(
+        "RGB", (columns * tile_width, rows * (tile_height + header)), "black"
+    )
     draw = ImageDraw.Draw(canvas)
     for index, (label, image) in enumerate(panels):
         column, row = index % columns, index // columns
@@ -230,6 +284,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--storage-root")
     parser.add_argument("--experiment-id", default="prism-privileged-raft-small-audit-001")
     parser.add_argument("--variant", choices=("small", "large"), default="small")
+    parser.add_argument(
+        "--mode", choices=("privileged", "endpoint-quadratic"), default="privileged"
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
