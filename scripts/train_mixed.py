@@ -72,6 +72,7 @@ def main() -> None:
         correspondence_limit=arguments.correspondence_limit,
         correlation_moments=arguments.correlation_moments,
         correlation_temperature=arguments.correlation_temperature,
+        pyramid_refinement=arguments.pyramid_refinement,
     )
     model = GenFramesBilateralFlow(model_config)
     initial_checkpoint = (
@@ -93,6 +94,10 @@ def main() -> None:
                     "correspondence_moment_scale",
                 )
             )
+        )
+    if arguments.pyramid_refinement:
+        allowed_keys.update(
+            key for key in model.state_dict() if key.startswith("pyramid_refiner.")
         )
     if not set(incompatible.missing_keys).issubset(allowed_keys) or incompatible.unexpected_keys:
         raise RuntimeError(f"incompatible initial checkpoint: {incompatible}")
@@ -211,6 +216,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--correspondence-limit", type=float, default=16.0)
     parser.add_argument("--correlation-moments", action="store_true")
     parser.add_argument("--correlation-temperature", type=float, default=0.1)
+    parser.add_argument("--pyramid-refinement", action="store_true")
     arguments = parser.parse_args()
     if not 0.0 < arguments.real_weight < 1.0:
         parser.error("--real-weight must lie inside (0, 1)")

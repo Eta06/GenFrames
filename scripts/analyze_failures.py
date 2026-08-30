@@ -21,12 +21,14 @@ CHALLENGER_ID = "prism-bilateral-flow-coarse-davis-mixed-001"
 ORACLE_WARP_ID = "prism-coarse-oracle-warp-davis-mixed-001"
 LOCAL_CORRELATION_ID = "prism-coarse-local-correlation-davis-mixed-001"
 EXPLICIT_DISPLACEMENT_ID = "prism-coarse-explicit-displacement-davis-mixed-001"
+PYRAMID_SINGLE_FLOW_ID = "prism-structural-pyramid-single-flow-davis-mixed-001"
 MODEL_SPECS = {
-    BASELINE_ID: {"coarse": False, "radius": 0, "moments": False},
-    CHALLENGER_ID: {"coarse": True, "radius": 0, "moments": False},
-    ORACLE_WARP_ID: {"coarse": True, "radius": 0, "moments": False},
-    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4, "moments": False},
-    EXPLICIT_DISPLACEMENT_ID: {"coarse": True, "radius": 4, "moments": True},
+    BASELINE_ID: {"coarse": False, "radius": 0, "moments": False, "pyramid": False},
+    CHALLENGER_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": False},
+    ORACLE_WARP_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": False},
+    LOCAL_CORRELATION_ID: {"coarse": True, "radius": 4, "moments": False, "pyramid": False},
+    EXPLICIT_DISPLACEMENT_ID: {"coarse": True, "radius": 4, "moments": True, "pyramid": False},
+    PYRAMID_SINGLE_FLOW_ID: {"coarse": True, "radius": 0, "moments": False, "pyramid": True},
 }
 
 
@@ -72,7 +74,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[EXPLICIT_DISPLACEMENT_ID],
+                outputs[PYRAMID_SINGLE_FLOW_ID],
             )
             cases.append(
                 {
@@ -201,7 +203,7 @@ def _stress_score(sample: dict[str, torch.Tensor | str]) -> float:
     return float(moving.float().mean() + 0.5 * objects.float().mean())
 
 
-def _load_model(layout, checkpoint_id, *, coarse, radius, moments, device):
+def _load_model(layout, checkpoint_id, *, coarse, radius, moments, pyramid, device):
     model = GenFramesBilateralFlow(
         BilateralFlowConfig(
             base_channels=24,
@@ -209,6 +211,7 @@ def _load_model(layout, checkpoint_id, *, coarse, radius, moments, device):
             coarse_velocity=coarse,
             correlation_radius=radius,
             correlation_moments=moments,
+            pyramid_refinement=pyramid,
         )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))

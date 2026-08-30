@@ -12,6 +12,7 @@ from genframes.ops import backward_warp, correlation_soft_argmax, local_correlat
 
 from .base import FrameInterpolator, InterpolationOutput, prepare_time
 from .blocks import ConvAct, ResidualBlock
+from .pyramid_refiner import PyramidVelocityRefiner
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,9 @@ class BilateralFlowConfig:
     correspondence_limit: float = 16.0
     correlation_moments: bool = False
     correlation_temperature: float = 0.1
+    pyramid_refinement: bool = False
+    pyramid_channels: tuple[int, ...] = (12, 16, 24, 32)
+    pyramid_radii: tuple[int, ...] = (2, 2, 2, 4)
 
 
 class GenFramesBilateralFlow(FrameInterpolator):
@@ -94,6 +98,13 @@ class GenFramesBilateralFlow(FrameInterpolator):
             self.correspondence_head = nn.Conv2d(match_channels * 2, 2, kernel_size=3, padding=1)
             nn.init.zeros_(self.correspondence_head.weight)
             nn.init.zeros_(self.correspondence_head.bias)
+        self.pyramid_refiner: PyramidVelocityRefiner | None = None
+        if self.config.pyramid_refinement:
+            self.pyramid_refiner = PyramidVelocityRefiner(
+                channels=self.config.pyramid_channels,
+                radii=self.config.pyramid_radii,
+                temperature=self.config.correlation_temperature,
+            )
 
     def forward(self, frame0: Tensor, frame1: Tensor, time: Tensor | float) -> InterpolationOutput:
         self.validate_frames(frame0, frame1)
@@ -174,6 +185,11 @@ class GenFramesBilateralFlow(FrameInterpolator):
                     self.correspondence_moment_scale.tanh() * moment_velocity
                 )
             velocity = velocity + correspondence_velocity
+        pyramid_diagnostics: dict[str, Tensor] = {}
+        if self.pyramid_refiner is not None:
+            velocity, pyramid_diagnostics = self.pyramid_refiner(
+                frame0, frame1, target_time, velocity
+            )
         flow_t0 = -target_time * velocity
         flow_t1 = (1.0 - target_time) * velocity
         warped0 = backward_warp(frame0, flow_t0)
@@ -198,4 +214,5 @@ class GenFramesBilateralFlow(FrameInterpolator):
             auxiliary["correspondence_velocity"] = correspondence_velocity
         if self.config.correlation_moments:
             auxiliary["correspondence_moment_scale"] = self.correspondence_moment_scale
+        auxiliary.update(pyramid_diagnostics)
         return InterpolationOutput(frame=frame, auxiliary=auxiliary)

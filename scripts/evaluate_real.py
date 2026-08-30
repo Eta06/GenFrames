@@ -48,6 +48,7 @@ def main() -> None:
             correspondence_limit=arguments.correspondence_limit,
             correlation_moments=arguments.correlation_moments,
             correlation_temperature=arguments.correlation_temperature,
+            pyramid_refinement=arguments.pyramid_refinement,
         )
     )
     model.load_state_dict(load_file(checkpoint))
@@ -131,6 +132,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--correspondence-limit", type=float, default=16.0)
     parser.add_argument("--correlation-moments", action="store_true")
     parser.add_argument("--correlation-temperature", type=float, default=0.1)
+    parser.add_argument("--pyramid-refinement", action="store_true")
     return parser.parse_args()
 
 
