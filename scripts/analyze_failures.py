@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 from safetensors.torch import load_file
 
 from genframes.data import DatasetManifest, ManifestFrameDataset, Split
-from genframes.models import BilateralFlowConfig, GenFramesBilateralFlow
+from genframes.models import BilateralFlowConfig, GenFramesBilateralFlow, GenFramesRaftGuided
 from genframes.storage import StorageLayout
 
 BASELINE_ID = "prism-bilateral-flow-davis-mixed-001"
@@ -77,6 +77,12 @@ def main() -> None:
         model_id: _load_model(layout, model_id, device=device, **spec)
         for model_id, spec in MODEL_SPECS.items()
     }
+    diagnostic_model_id = INDEPENDENT_PYRAMID_ID
+    if arguments.raft_experiment_id:
+        diagnostic_model_id = arguments.raft_experiment_id
+        models[diagnostic_model_id] = _load_raft_model(
+            layout, diagnostic_model_id, device=device
+        )
     cases: list[dict[str, object]] = []
     with torch.inference_mode():
         for ordinal, index in enumerate(selected, start=1):
@@ -99,7 +105,7 @@ def main() -> None:
                 frame0[0],
                 target[0],
                 frame1[0],
-                outputs[INDEPENDENT_PYRAMID_ID],
+                outputs[diagnostic_model_id],
             )
             cases.append(
                 {
@@ -121,7 +127,7 @@ def main() -> None:
             "disagreement": "mean RGB difference between endpoint warps above 0.1",
         },
         "cases": cases,
-        "aggregate": _aggregate(cases),
+        "aggregate": _aggregate(cases, tuple(models)),
     }
     (destination / "analysis.json").write_text(
         json.dumps(analysis, indent=2) + "\n", encoding="utf-8"
@@ -195,9 +201,11 @@ def _gradient_energy(frame: torch.Tensor) -> float:
     return float(horizontal + vertical)
 
 
-def _aggregate(cases: list[dict[str, object]]) -> dict[str, dict[str, float]]:
+def _aggregate(
+    cases: list[dict[str, object]], model_ids: tuple[str, ...]
+) -> dict[str, dict[str, float]]:
     result: dict[str, dict[str, float]] = {}
-    for model_id in MODEL_SPECS:
+    for model_id in model_ids:
         model_metrics = [case["models"][model_id] for case in cases]
         keys = model_metrics[0].keys()
         result[model_id] = {
@@ -253,6 +261,14 @@ def _load_model(
         )
     )
     model.load_state_dict(load_file(layout.checkpoints / checkpoint_id / "model.safetensors"))
+    return model.to(device).eval()
+
+
+def _load_raft_model(layout, checkpoint_id, *, device):
+    model = GenFramesRaftGuided()
+    model.load_fusion_state_dict(
+        load_file(layout.checkpoints / checkpoint_id / "fusion.safetensors")
+    )
     return model.to(device).eval()
 
 
@@ -335,6 +351,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ab-experiment", default="prism-human-ab-002")
     parser.add_argument("--output-name", default="diagnostics-explicit-displacement-001")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--raft-experiment-id")
     return parser.parse_args()
 
 

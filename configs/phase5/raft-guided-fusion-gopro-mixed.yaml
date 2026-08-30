@@ -1,0 +1,40 @@
+experiment_id: prism-raft-guided-fusion-gopro-mixed-001
+
+model:
+  name: GenFramesRaftGuided
+  motion: frozen_torchvision_raft_small_C_T_V2
+  endpoint_to_target: quadratic_flow_approximation
+  fusion_channels: 24
+  trainable_fusion_parameters: 550588
+  total_parameters: 1540750
+
+data:
+  real_weight: 0.85
+  synthetic_weight: 0.15
+  gopro_within_real_weight: 0.8
+  davis_within_real_weight: 0.2
+  crop_size: 256
+  gopro_license: CC-BY-4.0
+
+training:
+  steps: 1500
+  batch_size: 8
+  learning_rate: 0.0001
+  amp: true
+  seed: 6101
+
+loss:
+  charbonnier_weight: 1.0
+  edge_weight: 0.1
+  synthetic_visibility_weight: 0.05
+
+artifact:
+  contains_raft_weights: false
+  filename: fusion.safetensors
+  overwrite: forbidden
+
+acceptance:
+  aggregate_hard_case_alignment_positive: true
+  gains_must_span_multiple_hard_cases: true
+  visible_ghosting_reduction_required: true
+  blind_ab_only_after_clear_visual_gain: true

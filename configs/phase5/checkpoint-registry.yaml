@@ -1,4 +1,27 @@
 checkpoints:
+  - id: prism-raft-guided-fusion-gopro-mixed-001
+    status: research-reference-global-match-pass-fusion-fail-not-promoted
+    architecture: GenFramesRaftGuided+FrozenRAFTSmall+QuadraticTargetFlow
+    parameters: 1540750
+    trainable_parameters: 550588
+    storage_relative_path: checkpoints/prism-raft-guided-fusion-gopro-mixed-001/fusion.safetensors
+    sha256: 591f63a66a68607c00aced83237f5b651f95a17eb6cd6cef30ad888903d9fbdc
+    external_motion_dependency: torchvision-raft-small-C_T_V2
+    external_weights_bundled: false
+    validation:
+      davis_64_rgb_psnr_db: 26.444092735648155
+      davis_64_moving_psnr_db: 22.03620684146881
+      davis_64_object_psnr_db: 20.987230113295258
+      analytic_64_rgb_psnr_db: 35.04676991701126
+      analytic_64_occlusion_psnr_db: 21.033451586961746
+      hard_case_prediction_psnr_db: 18.213284015655518
+      hard_case_flow_alignment_gain_db: 2.961808522542318
+      hard_cases_improved_over_bilateral_baseline: 6
+      hard_cases_absolute_positive_alignment: 5
+      perceptual_gate: failed_ghosting_remains
+    provenance_risk: green_training_data_external_dependency_recorded
+    overwrite: forbidden
+
   - id: prism-independent-pyramid-privileged-davis-mixed-001
     status: research-reject-perceptual-ghosting-remains
     architecture: GenFramesBilateralFlow+IndependentFlowPyramid
