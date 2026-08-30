@@ -1,0 +1,30 @@
+experiment_id: parallax-fixed-point-multifield-audit-002
+git_keyword: Parallax
+
+motion_oracle:
+  name: torchvision-raft-small
+  weights: Raft_Small_Weights.C_T_V2
+  final_model_dependency_required: false
+
+representation:
+  single_fields: 2
+  multi_fields: 10
+  refinement_steps_per_endpoint: [0, 1, 2, 4]
+  damping: 0.75
+  learned_parameters_added: 0
+  fusion_or_selector: none
+
+evaluation:
+  davis_hard_samples: 6
+  davis_validation_samples: 24
+  gopro_official_test_samples: 24
+  analytic_exact_visibility_samples: 24
+  crop_size_non_hard: 256
+  subset_seed: 7201
+
+acceptance:
+  gain_must_span_all_hard_cases: true
+  high_disagreement_error_must_improve: true
+  exact_occlusion_error_must_improve: true
+  visual_candidates_must_be_meaningfully_aligned: true
+  decision: representation_pass_selector_not_yet_tested
